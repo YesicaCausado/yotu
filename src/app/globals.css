@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Paleta: crema, rosa suave, vino y neutros cálidos. */
+@theme {
+  --color-cream-50: #fffcf8;
+  --color-cream-100: #fbf6f1;
+  --color-cream-200: #f4ebe2;
+  --color-blush-100: #fbecee;
+  --color-blush-200: #f5d7dc;
+  --color-blush-300: #ebb7c0;
+  --color-rose-500: #c96f80;
+  --color-wine-500: #8e3446;
+  --color-wine-600: #7a2b3b;
+  --color-wine-700: #5f2030;
+  --color-ink-900: #2d2226;
+  --color-ink-700: #4f4246;
+  --color-ink-500: #7b6c70;
+  --color-ink-300: #b5a8ab;
+  --color-line: #eadfd7;
+  --color-success-50: #eef6f0;
+  --color-success-700: #2f6a45;
+  --color-danger-50: #fbefee;
+  --color-danger-700: #a3333a;
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-heading), ui-serif, Georgia, serif;
+
+  --shadow-soft: 0 1px 2px rgb(95 32 48 / 0.04), 0 8px 24px -12px rgb(95 32 48 / 0.14);
+
+  --animate-fade-in: fade-in 0.35s ease-out both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-cream-100);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--color-blush-200);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-wine-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
