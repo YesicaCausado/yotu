@@ -1,9 +1,10 @@
 import type { z } from "zod";
 
-/** Estado devuelto por las Server Actions usadas con useActionState. */
+/** Estado devuelto por las acciones de formulario usadas con useActionState. */
 export type FormState = {
   status: "idle" | "error" | "success";
   message?: string;
+  redirectTo?: string;
   fieldErrors?: Record<string, string[] | undefined>;
   /**
    * Valores enviados (nunca contraseñas) para volver a rellenar el formulario:

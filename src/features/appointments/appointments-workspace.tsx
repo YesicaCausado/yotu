@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -24,6 +23,7 @@ import {
 import { AppointmentForm } from "@/features/appointments/appointment-form";
 import { deleteAppointment } from "@/features/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
+import { getCoupleAppointments } from "@/lib/dal";
 import { todayIn } from "@/lib/dates";
 import type { AppointmentWithCover } from "@/lib/dal";
 import type { FormState } from "@/lib/form";
@@ -93,7 +93,7 @@ function getCalendarDays(date: string, mode: CalendarMode) {
 }
 
 export function AppointmentsWorkspace({
-  appointments,
+  appointments: initialAppointments,
   coupleId,
   timeZone,
 }: {
@@ -101,7 +101,7 @@ export function AppointmentsWorkspace({
   coupleId: string;
   timeZone: string;
 }) {
-  const router = useRouter();
+  const [appointments, setAppointments] = useState(initialAppointments);
   const today = todayIn(timeZone);
   const [filter, setFilter] = useState<ViewFilter>("upcoming");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("month");
@@ -113,6 +113,11 @@ export function AppointmentsWorkspace({
   const [pending, startTransition] = useTransition();
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
+  const refreshAppointments = useCallback(async () => {
+    const updated = await getCoupleAppointments(coupleId);
+    setAppointments(updated);
+  }, [coupleId]);
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -120,17 +125,25 @@ export function AppointmentsWorkspace({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "appointments", filter: `couple_id=eq.${coupleId}` },
-        () => router.refresh(),
+        () => {
+          void refreshAppointments().catch(() => {
+            setActionState({ status: "error", message: "No se pudo sincronizar el calendario. Actualiza la página." });
+          });
+        },
       )
       .subscribe((status) => {
         setRealtimeConnected(status === "SUBSCRIBED");
-        if (status === "SUBSCRIBED") router.refresh();
+        if (status === "SUBSCRIBED") {
+          void refreshAppointments().catch(() => {
+            setActionState({ status: "error", message: "No se pudo sincronizar el calendario. Actualiza la página." });
+          });
+        }
       });
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [coupleId, router]);
+  }, [coupleId, refreshAppointments]);
 
   const grouped = useMemo(() => {
     const groups: Record<ViewFilter, AppointmentWithCover[]> = {
@@ -176,7 +189,7 @@ export function AppointmentsWorkspace({
         setActionState(result);
         if (result.status === "success") {
           setActiveAppointmentId(null);
-          router.refresh();
+          await refreshAppointments();
         }
       } catch {
         setActionState({ status: "error", message: "No se pudo eliminar la cita por un problema de conexión." });
@@ -205,7 +218,16 @@ export function AppointmentsWorkspace({
           {realtimeConnected ? <Wifi className="size-4" aria-hidden /> : <WifiOff className="size-4" aria-hidden />}
           {realtimeConnected ? "Sincronizado con tu pareja" : "Conectando el calendario compartido…"}
         </span>
-        {!realtimeConnected && <button className="underline" onClick={() => router.refresh()}>Actualizar</button>}
+        {!realtimeConnected && (
+          <button
+            className="underline"
+            onClick={() => {
+              void refreshAppointments().catch(() => setActionState({ status: "error", message: "No se pudo actualizar el calendario." }));
+            }}
+          >
+            Actualizar
+          </button>
+        )}
       </div>
       {actionState && <FormMessage state={actionState} />}
 
@@ -370,7 +392,10 @@ export function AppointmentsWorkspace({
           date={formDate}
           appointment={formAppointment}
           onClose={() => setFormAppointment(undefined)}
-          onSaved={(result) => { setActionState(result); router.refresh(); }}
+          onSaved={(result) => {
+            setActionState(result);
+            void refreshAppointments().catch(() => setActionState({ status: "error", message: "La cita se guardó, pero no se pudo actualizar el calendario." }));
+          }}
         />
       )}
       {activeAppointment && (

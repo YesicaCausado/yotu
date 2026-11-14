@@ -1,9 +1,7 @@
-"use server";
+"use client";
 
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/client";
 import { getUser } from "@/lib/dal";
 import { env } from "@/lib/env";
 import { dbErrorMessage, GENERIC_ERROR } from "@/lib/errors";
@@ -27,7 +25,7 @@ async function createCoupleImpl(formData: FormData): Promise<FormState> {
   });
   if (!parsed.success) return validationError(parsed.error);
 
-  const supabase = await createClient();
+  const supabase = createClient();
   const { error } = await supabase.rpc("create_couple", {
     p_name: parsed.data.name,
     p_anniversary_date: parsed.data.anniversaryDate,
@@ -35,8 +33,7 @@ async function createCoupleImpl(formData: FormData): Promise<FormState> {
   });
   if (error) return errorState(dbErrorMessage(error));
 
-  revalidatePath("/", "layout");
-  redirect("/pareja");
+  return { ...successState("Vuestro espacio está listo."), redirectTo: "/pareja" };
 }
 
 export async function updateCouple(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -53,7 +50,7 @@ async function updateCoupleImpl(formData: FormData): Promise<FormState> {
   });
   if (!parsed.success) return validationError(parsed.error);
 
-  const supabase = await createClient();
+  const supabase = createClient();
   // La RLS limita la actualización a la pareja propia; current_couple_id se
   // deduce de la sesión, no del formulario.
   const { data: coupleId } = await supabase.rpc("current_couple_id");
@@ -69,7 +66,6 @@ async function updateCoupleImpl(formData: FormData): Promise<FormState> {
     .eq("id", coupleId);
   if (error) return errorState(GENERIC_ERROR);
 
-  revalidatePath("/", "layout");
   return successState("Datos de la pareja guardados.");
 }
 
@@ -78,16 +74,15 @@ export type InvitationState = FormState & { inviteUrl?: string; expiresAt?: stri
 export async function createInvitation(): Promise<InvitationState> {
   if (!(await getUser())) return errorState(SESSION_EXPIRED);
 
-  const supabase = await createClient();
+  const supabase = createClient();
   const { data, error } = await supabase.rpc("create_invitation");
   const row = data?.[0];
   if (error || !row) return errorState(dbErrorMessage(error));
 
-  revalidatePath("/pareja");
   return {
     status: "success",
     message: "Enlace creado. Compártelo solo con tu pareja.",
-    inviteUrl: `${env.siteUrl()}/invitacion/${row.token}`,
+    inviteUrl: `${env.siteUrl()}/invitacion/?token=${encodeURIComponent(row.token)}`,
     expiresAt: row.expires_at,
   };
 }
@@ -96,11 +91,10 @@ export async function revokeInvitation(invitationId: string): Promise<FormState>
   if (!(await getUser())) return errorState(SESSION_EXPIRED);
   if (!z.uuid().safeParse(invitationId).success) return errorState(GENERIC_ERROR);
 
-  const supabase = await createClient();
+  const supabase = createClient();
   const { error } = await supabase.rpc("revoke_invitation", { p_invitation_id: invitationId });
   if (error) return errorState(dbErrorMessage(error));
 
-  revalidatePath("/pareja");
   return successState("Invitación anulada.");
 }
 
@@ -110,12 +104,11 @@ export async function acceptInvitation(token: string): Promise<FormState> {
     return errorState(dbErrorMessage({ message: "invalid_invitation" }));
   }
 
-  const supabase = await createClient();
+  const supabase = createClient();
   const { error } = await supabase.rpc("accept_invitation", { p_token: token });
   if (error) return errorState(dbErrorMessage(error));
 
-  revalidatePath("/", "layout");
-  redirect("/inicio?bienvenida=1");
+  return { ...successState("¡Ya estáis vinculados!"), redirectTo: "/inicio/?bienvenida=1" };
 }
 
 export async function leaveCouple(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -124,10 +117,9 @@ export async function leaveCouple(_prev: FormState, formData: FormData): Promise
     return errorState("Escribe SALIR para confirmar.", { confirm: ["Escribe SALIR en mayúsculas."] });
   }
 
-  const supabase = await createClient();
+  const supabase = createClient();
   const { error } = await supabase.rpc("leave_couple");
   if (error) return errorState(dbErrorMessage(error));
 
-  revalidatePath("/", "layout");
-  redirect("/inicio");
+  return { ...successState("Has salido de la pareja."), redirectTo: "/inicio" };
 }

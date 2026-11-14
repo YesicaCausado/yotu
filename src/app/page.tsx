@@ -1,7 +1,11 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarHeart, Gift, LockKeyhole } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ButtonLink } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { getUser } from "@/lib/dal";
 
 const features = [
@@ -10,8 +14,14 @@ const features = [
   { Icon: LockKeyhole, title: "Solo para dos", text: "Un espacio privado al que nadie más puede acceder." },
 ];
 
-export default async function Home() {
-  if (await getUser()) redirect("/inicio");
+export default function Home() {
+  const router = useRouter();
+  const [authCheckFailed, setAuthCheckFailed] = useState(false);
+  useEffect(() => {
+    getUser().then((user) => {
+      if (user) router.replace("/inicio");
+    }).catch(() => setAuthCheckFailed(true));
+  }, [router]);
 
   return (
     <div className="flex flex-1 flex-col bg-[radial-gradient(ellipse_at_top,var(--color-blush-100),transparent_65%)]">
@@ -23,6 +33,7 @@ export default async function Home() {
       </header>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-4 pt-12 pb-16 text-center sm:pt-20">
+        {authCheckFailed && <Alert tone="error">No se pudo comprobar tu sesión. Puedes iniciar sesión para continuar.</Alert>}
         <h1 className="max-w-2xl font-display text-5xl leading-tight font-semibold text-wine-700 sm:text-6xl animate-fade-in">
           Un lugar solo vuestro
         </h1>

@@ -1,7 +1,6 @@
-"use server";
+"use client";
 
-import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/client";
 import { getUser } from "@/lib/dal";
 import { dbErrorMessage, GENERIC_ERROR } from "@/lib/errors";
 import { errorState, successState, validationError, type FormState } from "@/lib/form";
@@ -94,7 +93,6 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
     if (current.image_path && current.image_path !== appointment.image_path) {
       if (!(await removeCover(supabase, current.image_path))) message += " No se pudo eliminar la portada anterior.";
     }
-    revalidatePath("/citas");
     return successState(message);
   }
 
@@ -117,7 +115,6 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
     return errorState(dbErrorMessage(error));
   }
 
-  revalidatePath("/citas");
   return successState("¡Una nueva aventura está por comenzar!");
 }
 
@@ -145,6 +142,5 @@ export async function deleteAppointment(appointmentId: string): Promise<FormStat
   if (deleted.image_path) {
     if (!(await removeCover(supabase, deleted.image_path))) message += " No se pudo eliminar la portada.";
   }
-  revalidatePath("/citas");
   return successState(message);
 }

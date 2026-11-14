@@ -1,7 +1,6 @@
-"use server";
+"use client";
 
-import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/client";
 import { getUser } from "@/lib/dal";
 import { GENERIC_ERROR } from "@/lib/errors";
 import { errorState, successState, validationError, withValues, type FormState } from "@/lib/form";
@@ -33,7 +32,6 @@ async function updateProfileImpl(formData: FormData): Promise<FormState> {
     .eq("id", user.id);
   if (error) return errorState(GENERIC_ERROR);
 
-  revalidatePath("/", "layout");
   return successState("Perfil guardado.");
 }
 
@@ -53,15 +51,16 @@ export async function setAvatar(path: string): Promise<FormState> {
   const { error: checkError } = await supabase.storage.from("avatars").createSignedUrl(path, 10);
   if (checkError) return errorState("No encontramos la imagen subida. Inténtalo de nuevo.");
 
-  const { data: current } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
+  const { data: current, error: readError } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
+  if (readError) return errorState(GENERIC_ERROR);
   const { error } = await supabase.from("profiles").update({ avatar_path: path }).eq("id", user.id);
   if (error) return errorState(GENERIC_ERROR);
 
   if (current?.avatar_path && current.avatar_path !== path) {
-    await supabase.storage.from("avatars").remove([current.avatar_path]);
+    const { error: removeError } = await supabase.storage.from("avatars").remove([current.avatar_path]);
+    if (removeError) return successState("Foto actualizada. No se pudo eliminar la foto anterior.");
   }
 
-  revalidatePath("/", "layout");
   return successState("Foto actualizada.");
 }
 
@@ -70,14 +69,15 @@ export async function removeAvatar(): Promise<FormState> {
   if (!user) return errorState("Tu sesión ha caducado. Vuelve a iniciar sesión.");
 
   const supabase = await createClient();
-  const { data: current } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
+  const { data: current, error: readError } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
+  if (readError) return errorState(GENERIC_ERROR);
   const { error } = await supabase.from("profiles").update({ avatar_path: null }).eq("id", user.id);
   if (error) return errorState(GENERIC_ERROR);
 
   if (current?.avatar_path) {
-    await supabase.storage.from("avatars").remove([current.avatar_path]);
+    const { error: removeError } = await supabase.storage.from("avatars").remove([current.avatar_path]);
+    if (removeError) return successState("Foto eliminada del perfil. No se pudo limpiar el archivo antiguo.");
   }
 
-  revalidatePath("/", "layout");
   return successState("Foto eliminada.");
 }

@@ -1,13 +1,24 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { requireUser } from "@/lib/dal";
+import { Alert } from "@/components/ui/alert";
 import { PasswordForm } from "@/components/forms/password-form";
+import { getUser } from "@/lib/dal";
 
-export const metadata: Metadata = { title: "Nueva contraseña" };
+export default function NewPasswordPage() {
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
 
-export default async function NewPasswordPage() {
-  await requireUser("/nueva-contrasena");
+  useEffect(() => {
+    getUser().then((user) => {
+      if (user) setAuthorized(true);
+      else router.replace("/login?next=%2Fnueva-contrasena");
+    }).catch(() => router.replace("/login?next=%2Fnueva-contrasena"));
+  }, [router]);
 
+  if (!authorized) return <Alert tone="info">Verificando el enlace…</Alert>;
   return (
     <Card>
       <h1 className="font-display text-3xl font-semibold text-wine-700">Crea una contraseña nueva</h1>

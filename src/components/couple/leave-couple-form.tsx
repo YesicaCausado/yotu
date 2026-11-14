@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { leaveCouple } from "@/features/couple/actions";
 import { initialFormState } from "@/lib/form";
 import { Field } from "@/components/ui/field";
@@ -8,8 +9,13 @@ import { FormMessage } from "@/components/ui/alert";
 import { Button, SubmitButton } from "@/components/ui/button";
 
 export function LeaveCoupleForm() {
+  const router = useRouter();
   const [state, action] = useActionState(leaveCouple, initialFormState);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (state.redirectTo) router.replace(state.redirectTo);
+  }, [router, state.redirectTo]);
 
   if (!open) {
     return (

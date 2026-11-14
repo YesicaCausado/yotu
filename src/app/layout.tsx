@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   title: { default: "Yotu", template: "%s · Yotu" },
   description: "Vuestro espacio privado para citas, sorpresas y recuerdos.",
   robots: { index: false, follow: false },
+  referrer: "no-referrer",
 };
 
 export const viewport: Viewport = {

@@ -1,4 +1,4 @@
-/** Rutas que requieren sesión (comprobación optimista en proxy.ts). */
+/** Rutas de la zona privada (la interfaz comprueba sesión; RLS autoriza los datos). */
 export const PROTECTED_PREFIXES = ["/inicio", "/pareja", "/perfil", "/nueva-contrasena"];
 
 /** Rutas solo para visitantes sin sesión. */

@@ -1,4 +1,6 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { HeartHandshake, MailOpen, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -6,19 +8,36 @@ import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CoupleHeader } from "@/components/couple/couple-header";
-import { getCoupleContext, getMyProfile } from "@/lib/dal";
+import { getCoupleContext, getMyProfile, type CoupleContext, type ProfileWithAvatar } from "@/lib/dal";
 import { daysBetween, formatLongDate, nextAnniversary, todayIn } from "@/lib/dates";
 
-export const metadata: Metadata = { title: "Inicio" };
+export default function HomePage() {
+  const [profile, setProfile] = useState<ProfileWithAvatar | null>(null);
+  const [context, setContext] = useState<CoupleContext | null>(null);
+  const [error, setError] = useState(false);
+  const welcome = useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("bienvenida") === "1",
+    () => false,
+  );
 
-export default async function HomePage({ searchParams }: PageProps<"/inicio">) {
-  const [{ bienvenida }, profile, context] = await Promise.all([searchParams, getMyProfile(), getCoupleContext()]);
+  useEffect(() => {
+    Promise.all([getMyProfile(), getCoupleContext()])
+      .then(([nextProfile, nextContext]) => {
+        setProfile(nextProfile);
+        setContext(nextContext);
+      })
+      .catch(() => setError(true));
+  }, []);
+
+  if (error) return <Alert tone="error">No se pudo cargar vuestro espacio. Comprueba tu conexión e inténtalo de nuevo.</Alert>;
+  if (!profile) return <p className="text-sm text-ink-500">Cargando vuestro espacio…</p>;
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-display text-4xl font-semibold text-wine-700">Hola, {profile.display_name}</h1>
 
-      {bienvenida === "1" && context?.partner && (
+      {welcome && context?.partner && (
         <Alert tone="success">¡Ya estáis vinculados! Este es vuestro espacio compartido.</Alert>
       )}
 

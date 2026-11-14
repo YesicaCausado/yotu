@@ -25,7 +25,7 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
    Sube la longitud mínima de contraseña a 8 (la app ya la exige en el servidor).
 4. **Authentication → URL Configuration:**
    - *Site URL*: la URL de producción (p. ej. `https://tu-app.vercel.app`).
-   - *Redirect URLs*: añade `http://localhost:3000/**` y `https://tu-app.vercel.app/**`.
+   - *Redirect URLs*: añade `http://localhost:3000/**` y la URL de producción, por ejemplo `https://yesicacausado.github.io/yotu/**`.
 5. **Authentication → Emails → Templates** (recomendado, permite abrir el enlace en cualquier dispositivo):
    - *Confirm signup*: cambia el enlace por
      `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`
@@ -36,6 +36,19 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
 6. **Project Settings → API:** copia la URL y la clave `anon` (pública).
 
 > El servicio de correo integrado de Supabase tiene un límite muy bajo de envíos por hora. Para uso real configura un SMTP propio en **Authentication → Emails → SMTP Settings**.
+
+### Publicar en GitHub Pages
+
+La aplicación se exporta como sitio estático de Next.js al directorio `out/`. El workflow `.github/workflows/deploy-pages.yml` publica ese artefacto cuando se actualiza `main` o `master`.
+
+1. En GitHub, abre **Settings → Pages** y elige **GitHub Actions** como fuente de publicación.
+2. En **Settings → Secrets and variables → Actions → Variables**, crea:
+   - `NEXT_PUBLIC_SUPABASE_URL`: URL del proyecto Supabase.
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: clave publicable (`sb_publishable_...` o la clave `anon`).
+3. En Supabase, aplica las migraciones de `supabase/migrations/` en orden. Configura *Site URL* como `https://yesicacausado.github.io/yotu/` y permite ese dominio bajo **Redirect URLs**, incluyendo `https://yesicacausado.github.io/yotu/auth/confirm/`.
+4. Publica el workflow y revisa **Actions** para confirmar el despliegue. La aplicación quedará en `https://yesicacausado.github.io/yotu/`.
+
+GitHub Pages no ejecuta Node.js: la autenticación y las consultas se realizan desde el navegador con la clave publicable de Supabase, y la base de datos debe protegerse con las políticas RLS/RPC existentes. No agregues `service_role` ni una clave secreta a las variables del workflow.
 
 ### 2. Variables de entorno
 
@@ -49,7 +62,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública `anon`; segura en el navegador porque la RLS protege los datos |
 | `NEXT_PUBLIC_SITE_URL` | URL pública de la app (enlaces de correos e invitaciones) |
 
-Ningún secreto de servidor es necesario en la Fase 1. **Nunca** uses la clave `service_role` con prefijo `NEXT_PUBLIC_`.
+La aplicación no necesita una clave secreta de servidor. **Nunca** uses la clave `service_role` con prefijo `NEXT_PUBLIC_`.
 
 ### 3. Ejecutar
 
@@ -84,12 +97,12 @@ tests/db/              Pruebas de RLS con PGlite
 src/app/               Rutas (App Router)
   (auth)/              login, registro, recuperar, nueva-contrasena
   (app)/               zona privada: inicio, citas, pareja, perfil
-  auth/confirm/        destino de los enlaces de los correos
-  invitacion/[token]/  aceptar invitación
+  auth/confirm/        callback estático de los enlaces de correo
+  invitacion/          aceptación de invitación (token en query string)
 src/components/        ui/ (sistema de diseño), layout/, couple/, profile/, forms/
-src/features/*/        Server Actions y componentes por módulo
+src/features/*/        acciones cliente y componentes por módulo
 src/lib/               supabase/ (clientes), dal.ts, validation.ts, dates.ts, ...
-src/proxy.ts           Renovación de sesión y redirecciones optimistas
+.github/workflows/     build estático y publicación en GitHub Pages
 ```
 
 ## Seguridad (resumen)
@@ -98,10 +111,10 @@ src/proxy.ts           Renovación de sesión y redirecciones optimistas
 - Crear pareja, invitar, aceptar, anular y salir solo mediante funciones `SECURITY DEFINER` con validación atómica.
 - Máximo dos miembros por pareja (trigger con bloqueo de fila) y una pareja por persona (`UNIQUE`).
 - Invitaciones: token aleatorio de ~244 bits, se guarda solo su SHA-256, un solo uso, caducan en 7 días, anulables; límite de 10 por hora.
-- La sesión se valida en el servidor con `getUser()`/`getClaims()`; `proxy.ts` es solo una comprobación optimista.
+- La sesión se gestiona desde el cliente de Supabase porque GitHub Pages no ejecuta Node.js; la interfaz protege la navegación y RLS/RPC autorizan cada operación de datos.
 - Avatares en bucket **privado**, cada persona solo escribe en su carpeta; se sirven con URLs firmadas de 1 hora; la imagen se recorta y re-codifica en el navegador (elimina EXIF/GPS).
 - Citas vinculadas al identificador de la pareja con RLS; sus portadas se guardan en un bucket privado y los cambios se transmiten por Supabase Realtime.
-- Redirecciones `?next=` validadas contra redirecciones abiertas; cabeceras de seguridad y `Referrer-Policy: no-referrer` en las invitaciones.
+- Redirecciones `?next=` validadas contra redirecciones abiertas; `Referrer-Policy: no-referrer` se define en los metadatos estáticos, incluidos los enlaces de invitación.
 - Mensajes de error que no revelan si un email está registrado.
 
 ### Decisión: salir de la pareja

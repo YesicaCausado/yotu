@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useSyncExternalStore } from "react";
+import { useActionState, useEffect, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { MailCheck } from "lucide-react";
 import { register } from "@/features/auth/actions";
 import { initialFormState } from "@/lib/form";
@@ -12,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 const noopSubscribe = () => () => {};
 
 export function RegisterForm({ next }: { next: string }) {
+  const router = useRouter();
   const [state, action] = useActionState(register, initialFormState);
   // Zona horaria del dispositivo; se puede cambiar después en el perfil.
   const timezone = useSyncExternalStore(
@@ -19,6 +21,10 @@ export function RegisterForm({ next }: { next: string }) {
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     () => "UTC",
   );
+
+  useEffect(() => {
+    if (state.redirectTo) router.replace(state.redirectTo);
+  }, [router, state.redirectTo]);
 
   if (state.status === "success") {
     return <EmptyState icon={MailCheck} title="Revisa tu correo" description={state.message} />;

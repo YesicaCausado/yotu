@@ -37,6 +37,7 @@ async function prepareImage(file: File): Promise<Blob> {
 export function AvatarUploader({ userId, name, url }: { userId: string; name: string; url: string | null }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<FormState | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState(url);
   const [pending, startTransition] = useTransition();
 
   const onFile = (file: File | undefined) => {
@@ -65,7 +66,16 @@ export function AvatarUploader({ userId, name, url }: { userId: string; name: st
           setState({ status: "error", message: "No se pudo subir la imagen. Inténtalo de nuevo." });
           return;
         }
-        setState(await setAvatar(path));
+        const result = await setAvatar(path);
+        setState(result);
+        if (result.status === "success") {
+          const { data: signed, error: signedError } = await supabase.storage.from("avatars").createSignedUrl(path, 60 * 60);
+          if (signedError) {
+            setState({ status: "error", message: "La foto se guardó, pero no se pudo mostrar. Recarga la página." });
+            return;
+          }
+          setAvatarUrl(signed.signedUrl);
+        }
       } catch {
         setState({ status: "error", message: "No se pudo procesar la imagen. Prueba con otra." });
       } finally {
@@ -74,13 +84,17 @@ export function AvatarUploader({ userId, name, url }: { userId: string; name: st
     });
   };
 
-  const onRemove = () => startTransition(async () => setState(await removeAvatar()));
+  const onRemove = () => startTransition(async () => {
+    const result = await removeAvatar();
+    setState(result);
+    if (result.status === "success") setAvatarUrl(null);
+  });
 
   return (
     <div className="flex flex-col gap-4">
       {state && <FormMessage state={state} />}
       <div className="flex items-center gap-5">
-        <Avatar name={name} url={url} size="xl" />
+        <Avatar name={name} url={avatarUrl} size="xl" />
         <div className="flex flex-col gap-2">
           <input
             ref={inputRef}
@@ -93,9 +107,9 @@ export function AvatarUploader({ userId, name, url }: { userId: string; name: st
           />
           <Button type="button" variant="secondary" pending={pending} onClick={() => inputRef.current?.click()}>
             {!pending && <Camera className="size-4" aria-hidden />}
-            {url ? "Cambiar foto" : "Subir foto"}
+            {avatarUrl ? "Cambiar foto" : "Subir foto"}
           </Button>
-          {url && (
+            {avatarUrl && (
             <Button type="button" variant="ghost" onClick={onRemove} disabled={pending}>
               <Trash2 className="size-4" aria-hidden />
               Quitar

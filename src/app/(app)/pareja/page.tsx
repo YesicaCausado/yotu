@@ -1,20 +1,56 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
+import { Alert } from "@/components/ui/alert";
 import { CoupleForm } from "@/components/couple/couple-form";
 import { InvitationPanel } from "@/components/couple/invitation-panel";
 import { LeaveCoupleForm } from "@/components/couple/leave-couple-form";
 import { CoupleHeader } from "@/components/couple/couple-header";
 import { createCouple, updateCouple } from "@/features/couple/actions";
-import { getCoupleContext, getMyProfile } from "@/lib/dal";
-import { createClient } from "@/lib/supabase/server";
+import { getCoupleContext, getMyProfile, type CoupleContext, type ProfileWithAvatar } from "@/lib/dal";
+import { createClient } from "@/lib/supabase/client";
 import { listTimeZones } from "@/lib/timezones";
 import { todayIn } from "@/lib/dates";
 
-export const metadata: Metadata = { title: "Pareja" };
+export default function CouplePage() {
+  const [profile, setProfile] = useState<ProfileWithAvatar | null>(null);
+  const [context, setContext] = useState<CoupleContext | null>(null);
+  const [activeInvitation, setActiveInvitation] = useState<{ id: string; expires_at: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-export default async function CouplePage() {
-  const [profile, context] = await Promise.all([getMyProfile(), getCoupleContext()]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([getMyProfile(), getCoupleContext()])
+      .then(async ([myProfile, coupleContext]) => {
+        if (!active) return;
+        setProfile(myProfile);
+        setContext(coupleContext);
+        if (coupleContext && !coupleContext.partner) {
+          const supabase = createClient();
+          const { data, error: invitationError } = await supabase
+            .from("couple_invitations")
+            .select("id, expires_at")
+            .eq("couple_id", coupleContext.couple.id)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+            .gt("expires_at", new Date().toISOString())
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (invitationError) throw invitationError;
+          if (active) setActiveInvitation(data);
+        }
+      })
+      .catch(() => { if (active) setError(true); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  if (loading) return <p className="text-sm text-ink-500">Cargando vuestro espacio…</p>;
+  if (error || !profile) return <Alert tone="error">No se pudo cargar vuestro espacio. Inténtalo de nuevo.</Alert>;
 
   if (!context) {
     return (
@@ -38,23 +74,6 @@ export default async function CouplePage() {
   }
 
   const { couple, partner } = context;
-  let activeInvitation: { id: string; expires_at: string } | null = null;
-
-  if (!partner) {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("couple_invitations")
-      .select("id, expires_at")
-      .eq("couple_id", couple.id)
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    activeInvitation = data;
-  }
-
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6">
       <h1 className="font-display text-4xl font-semibold text-wine-700">Vuestro espacio</h1>
@@ -95,11 +114,7 @@ export default async function CouplePage() {
       <Card className="border-danger-700/20">
         <CardHeader
           title="Salir de la pareja"
-          description={
-            partner
-              ? `Perderás el acceso al espacio compartido. ${partner.display_name} conservará los datos.`
-              : "Como eres la única persona, el espacio se eliminará."
-          }
+          description={partner ? `Perderás el acceso al espacio compartido. ${partner.display_name} conservará los datos.` : "Como eres la única persona, el espacio se eliminará."}
         />
         <LeaveCoupleForm />
       </Card>

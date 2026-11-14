@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { initialFormState, type FormState } from "@/lib/form";
 import { Field } from "@/components/ui/field";
 import { FormMessage } from "@/components/ui/alert";
@@ -23,8 +24,14 @@ export function CoupleForm({
   /** Hoy (AAAA-MM-DD), calculado en el servidor en la zona horaria del usuario. */
   maxDate: string;
 }) {
+  const router = useRouter();
   const [state, formAction] = useActionState(action, initialFormState);
   const values = { ...defaults, ...state.values };
+
+  useEffect(() => {
+    if (state.redirectTo) router.replace(state.redirectTo);
+    else if (state.status === "success") window.location.reload();
+  }, [router, state.redirectTo, state.status]);
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>

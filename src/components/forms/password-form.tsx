@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { updatePassword } from "@/features/auth/actions";
 import { initialFormState } from "@/lib/form";
 import { Field } from "@/components/ui/field";
@@ -8,7 +9,12 @@ import { FormMessage } from "@/components/ui/alert";
 import { SubmitButton } from "@/components/ui/button";
 
 export function PasswordForm({ redirectAfter = false }: { redirectAfter?: boolean }) {
+  const router = useRouter();
   const [state, action] = useActionState(updatePassword, initialFormState);
+
+  useEffect(() => {
+    if (state.redirectTo) router.replace(state.redirectTo);
+  }, [router, state.redirectTo]);
 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>

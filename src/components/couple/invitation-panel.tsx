@@ -27,14 +27,22 @@ export function InvitationPanel({
     startTransition(async () => {
       setRevoked(null);
       setCopied(false);
-      setCreated(await createInvitation());
+      try {
+        setCreated(await createInvitation());
+      } catch {
+        setCreated({ status: "error", message: "No se pudo crear el enlace. Comprueba tu conexión e inténtalo de nuevo." });
+      }
     });
 
   const revoke = (id: string) =>
     startTransition(async () => {
-      const result = await revokeInvitation(id);
-      setRevoked(result);
-      if (result.status === "success") setCreated(null);
+      try {
+        const result = await revokeInvitation(id);
+        setRevoked(result);
+        if (result.status === "success") setCreated(null);
+      } catch {
+        setRevoked({ status: "error", message: "No se pudo anular el enlace. Inténtalo de nuevo." });
+      }
     });
 
   const copy = async (url: string) => {
