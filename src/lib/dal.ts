@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { Appointment, Couple, Profile } from "@/types/database";
+import type { Appointment, Couple, Database, PersonalDayNote, Profile } from "@/types/database";
 
 export type ProfileWithAvatar = Profile & { avatarUrl: string | null };
 
@@ -11,6 +11,7 @@ export type CoupleContext = {
 };
 
 export type AppointmentWithCover = Appointment & { coverUrl: string | null };
+export type CalendarActivity = Database["public"]["Functions"]["get_calendar_activities"]["Returns"][number];
 
 /** La sesión se mantiene en el navegador; RLS protege todas las consultas. */
 export async function getUser() {
@@ -109,4 +110,23 @@ export async function getCoupleAppointments(coupleId: string): Promise<Appointme
     ...appointment,
     coverUrl: appointment.image_path ? (urls.get(appointment.image_path) ?? null) : null,
   }));
+}
+
+export async function getCalendarActivities(from: string, to: string): Promise<CalendarActivity[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("get_calendar_activities", { p_from: from, p_to: to });
+  if (error) throw new Error("No se pudieron cargar las actividades del calendario.");
+  return data ?? [];
+}
+
+export async function getPersonalDayNotes(date: string): Promise<PersonalDayNote[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("personal_day_notes")
+    .select("*")
+    .eq("note_date", date)
+    .order("reminder_at", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error("No se pudieron cargar las notas de este día.");
+  return data ?? [];
 }

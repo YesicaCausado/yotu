@@ -25,12 +25,14 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export function AppointmentForm({
   coupleId,
   date,
+  initialStartTime,
   appointment,
   onClose,
   onSaved,
 }: {
   coupleId: string;
   date: string;
+  initialStartTime?: string;
   appointment: AppointmentWithCover | null;
   onClose: () => void;
   onSaved: (state: FormState) => void;
@@ -175,7 +177,7 @@ export function AppointmentForm({
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-ink-700">Hora de inicio</span>
-            <input name="startTime" type="time" required defaultValue={appointment?.start_time.slice(0, 5) ?? "18:00"} className={inputClass} />
+            <input name="startTime" type="time" required defaultValue={appointment?.start_time.slice(0, 5) ?? initialStartTime ?? "18:00"} className={inputClass} />
             <FieldError state={state} name="startTime" />
           </label>
           <label className="flex flex-col gap-1.5">

@@ -108,6 +108,19 @@ const optionalAppointmentText = (max: number) =>
 
 export const appointmentCategories = ["romantica", "comida", "paseo", "cine", "viaje", "celebracion", "otra"] as const;
 export const appointmentStatuses = ["planned", "completed", "cancelled"] as const;
+export const personalActivityCategories = [
+  "university",
+  "work",
+  "study",
+  "exercise",
+  "errands",
+  "family",
+  "personal",
+  "rest",
+  "other",
+] as const;
+export const activityVisibilities = ["private", "availability", "shared"] as const;
+export const activityColors = ["#C66B82", "#6277B8", "#3B8A7B", "#D28B44", "#8564A8", "#4F7D9B"] as const;
 
 export const appointmentSchema = z
   .object({
@@ -134,6 +147,43 @@ export const appointmentSchema = z
     path: ["endTime"],
     message: "La hora de finalización debe ser posterior al inicio.",
   });
+
+export const personalActivitySchema = z
+  .object({
+    activityId: z.union([z.uuid(), z.literal("")]),
+    requestKey: z.uuid(),
+    title: z.string().trim().min(1, "Escribe el nombre de la actividad.").max(120, "Usa como máximo 120 caracteres."),
+    description: optionalAppointmentText(3000),
+    activityDate: appointmentDate,
+    startTime: appointmentTime,
+    endTime: appointmentTime,
+    category: z.enum(personalActivityCategories),
+    location: optionalAppointmentText(200),
+    personalNotes: optionalAppointmentText(3000),
+    color: z.enum(activityColors),
+    visibility: z.enum(activityVisibilities),
+  })
+  .refine((value) => value.endTime > value.startTime, {
+    path: ["endTime"],
+    message: "La hora de finalización debe ser posterior al inicio.",
+  });
+
+const optionalLocalDateTime = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(value), "El recordatorio no es válido.")
+  .refine((value) => value === "" || appointmentDate.safeParse(value.slice(0, 10)).success, "La fecha del recordatorio no es válida.")
+  .transform((value) => (value ? new Date(value).toISOString() : null));
+
+export const personalDayNoteSchema = z.object({
+  id: z.union([z.uuid(), z.literal("")]),
+  requestKey: z.uuid(),
+  noteDate: appointmentDate,
+  title: z.string().trim().min(1, "Escribe una nota o pendiente.").max(120, "Usa como máximo 120 caracteres."),
+  content: optionalAppointmentText(5000),
+  reminderAt: optionalLocalDateTime,
+  isTask: z.boolean(),
+});
 
 /** Tokens de invitación: 64 caracteres hexadecimales generados por la base de datos. */
 export const invitationTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);

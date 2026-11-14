@@ -24,6 +24,7 @@ import { AppointmentForm } from "@/features/appointments/appointment-form";
 import { deleteAppointment } from "@/features/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
 import { getCoupleAppointments } from "@/lib/dal";
+import { dayLabel, getCalendarDays, isoDate, offsetDate, parseDate } from "@/lib/calendar";
 import { todayIn } from "@/lib/dates";
 import type { AppointmentWithCover } from "@/lib/dal";
 import type { FormState } from "@/lib/form";
@@ -54,42 +55,10 @@ const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 type ViewFilter = "upcoming" | "completed" | "cancelled";
 type CalendarMode = "month" | "week";
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function offsetDate(value: string, days: number) {
-  const date = parseDate(value);
-  date.setUTCDate(date.getUTCDate() + days);
-  return isoDate(date);
-}
-
 function appointmentGroup(appointment: AppointmentWithCover, today: string): ViewFilter {
   if (appointment.status === "cancelled") return "cancelled";
   if (appointment.status === "completed" || appointment.date < today) return "completed";
   return "upcoming";
-}
-
-function dayLabel(value: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long" }) {
-  return new Intl.DateTimeFormat("es", { ...options, timeZone: "UTC" }).format(parseDate(value));
-}
-
-function getCalendarDays(date: string, mode: CalendarMode) {
-  if (mode === "week") {
-    const weekday = (parseDate(date).getUTCDay() + 6) % 7;
-    const first = offsetDate(date, -weekday);
-    return Array.from({ length: 7 }, (_, index) => offsetDate(first, index));
-  }
-  const [year, month] = date.split("-").map(Number);
-  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
-  const mondayOffset = (firstOfMonth.getUTCDay() + 6) % 7;
-  const first = offsetDate(isoDate(firstOfMonth), -mondayOffset);
-  return Array.from({ length: 42 }, (_, index) => offsetDate(first, index));
 }
 
 export function AppointmentsWorkspace({

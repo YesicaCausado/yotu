@@ -9,7 +9,7 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Registro, inicio de sesión, perfiles, creación y vinculación de parejas | ✅ Implementada |
-| 2 | Citas compartidas, listado, edición y calendario en tiempo real | ✅ Implementada |
+| 2 | Citas compartidas, actividades personales, privacidad, calendario combinado, notas diarias y disponibilidad en tiempo real | ✅ Implementada |
 | 3 | Citas sorpresa y contenido bloqueado | Pendiente |
 | 4 | Gustos, notas, fechas importantes, recuerdos y fotos | Pendiente |
 | 5 | Google Calendar y notificaciones avanzadas | Pendiente |
@@ -96,7 +96,7 @@ supabase/migrations/   SQL versionado (tablas, RLS, funciones RPC, Storage)
 tests/db/              Pruebas de RLS con PGlite
 src/app/               Rutas (App Router)
   (auth)/              login, registro, recuperar, nueva-contrasena
-  (app)/               zona privada: inicio, citas, pareja, perfil
+  (app)/               zona privada: inicio, citas, calendario, pareja, perfil
   auth/confirm/        callback estático de los enlaces de correo
   invitacion/          aceptación de invitación (token en query string)
 src/components/        ui/ (sistema de diseño), layout/, couple/, profile/, forms/
@@ -114,6 +114,8 @@ src/lib/               supabase/ (clientes), dal.ts, validation.ts, dates.ts, ..
 - La sesión se gestiona desde el cliente de Supabase porque GitHub Pages no ejecuta Node.js; la interfaz protege la navegación y RLS/RPC autorizan cada operación de datos.
 - Avatares en bucket **privado**, cada persona solo escribe en su carpeta; se sirven con URLs firmadas de 1 hora; la imagen se recorta y re-codifica en el navegador (elimina EXIF/GPS).
 - Citas vinculadas al identificador de la pareja con RLS; sus portadas se guardan en un bucket privado y los cambios se transmiten por Supabase Realtime.
+- Actividades personales asociadas a su creador y pareja; la información privada queda separada y solo se consulta mediante RPC con campos filtrados según visibilidad. Las notas diarias tienen RLS exclusiva del usuario.
+- El calendario conjunto recibe solo invalidaciones sin contenido de horarios visibles; los eventos privados no generan sincronización hacia la pareja. La disponibilidad considera 07:00–22:00 y muestra espacios desde 60 minutos.
 - Redirecciones `?next=` validadas contra redirecciones abiertas; `Referrer-Policy: no-referrer` se define en los metadatos estáticos, incluidos los enlaces de invitación.
 - Mensajes de error que no revelan si un email está registrado.
 

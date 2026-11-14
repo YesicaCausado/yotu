@@ -143,6 +143,110 @@ export type Database = {
           },
         ];
       };
+      personal_activities: {
+        Row: {
+          id: string;
+          couple_id: string;
+          user_id: string;
+          request_key: string;
+          activity_date: string;
+          start_time: string;
+          end_time: string;
+          visibility: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "personal_activities_couple_id_fkey";
+            columns: ["couple_id"];
+            isOneToOne: false;
+            referencedRelation: "couples";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      personal_activity_details: {
+        Row: {
+          activity_id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          category: string;
+          location: string | null;
+          personal_notes: string | null;
+          color: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "personal_activity_details_owner_fkey";
+            columns: ["activity_id", "user_id"];
+            isOneToOne: true;
+            referencedRelation: "personal_activities";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      personal_day_notes: {
+        Row: {
+          id: string;
+          user_id: string;
+          request_key: string;
+          note_date: string;
+          title: string;
+          content: string | null;
+          reminder_at: string | null;
+          is_task: boolean;
+          is_completed: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          request_key: string;
+          note_date: string;
+          title: string;
+          content?: string | null;
+          reminder_at?: string | null;
+          is_task?: boolean;
+          is_completed?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          note_date?: string;
+          title?: string;
+          content?: string | null;
+          reminder_at?: string | null;
+          is_task?: boolean;
+          is_completed?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      calendar_sync_state: {
+        Row: {
+          couple_id: string;
+          version: number;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "calendar_sync_state_couple_id_fkey";
+            columns: ["couple_id"];
+            isOneToOne: true;
+            referencedRelation: "couples";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -174,6 +278,44 @@ export type Database = {
         Args: Record<string, never>;
         Returns: string | null;
       };
+      save_personal_activity: {
+        Args: {
+          p_activity_id: string | null;
+          p_request_key: string;
+          p_title: string;
+          p_description: string | null;
+          p_activity_date: string;
+          p_start_time: string;
+          p_end_time: string;
+          p_category: string;
+          p_location: string | null;
+          p_personal_notes: string | null;
+          p_color: string;
+          p_visibility: string;
+        };
+        Returns: string;
+      };
+      delete_personal_activity: {
+        Args: { p_activity_id: string };
+        Returns: undefined;
+      };
+      get_calendar_activities: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          id: string;
+          owner_id: string;
+          activity_date: string;
+          start_time: string;
+          end_time: string;
+          visibility: string;
+          color: string;
+          title: string | null;
+          description: string | null;
+          category: string | null;
+          location: string | null;
+          personal_notes: string | null;
+        }[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
@@ -196,3 +338,19 @@ export type Couple = PublicTables["couples"]["Row"];
 export type CoupleMember = PublicTables["couple_members"]["Row"];
 export type CoupleInvitation = PublicTables["couple_invitations"]["Row"];
 export type Appointment = PublicTables["appointments"]["Row"];
+export type PersonalActivity = PublicTables["personal_activities"]["Row"];
+export type PersonalActivityDetails = PublicTables["personal_activity_details"]["Row"];
+export type PersonalDayNote = PublicTables["personal_day_notes"]["Row"];
+export type CalendarSyncState = PublicTables["calendar_sync_state"]["Row"];
+
+export type PersonalActivityCategory =
+  | "university"
+  | "work"
+  | "study"
+  | "exercise"
+  | "errands"
+  | "family"
+  | "personal"
+  | "rest"
+  | "other";
+export type ActivityVisibility = "private" | "availability" | "shared";
