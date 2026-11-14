@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { coupleSchema, invitationTokenSchema, isOwnAvatarPath, profileSchema, registerSchema } from "./validation";
+import {
+  appointmentSchema,
+  coupleSchema,
+  invitationTokenSchema,
+  isOwnAvatarPath,
+  profileSchema,
+  registerSchema,
+} from "./validation";
 
 const uid = "3f1c1c9e-8d7a-4c7b-9a51-2b7f4f3a9d10";
 
@@ -44,6 +51,39 @@ describe("coupleSchema", () => {
       anniversaryDate: null,
       timezone: "UTC",
     });
+  });
+});
+
+describe("appointmentSchema", () => {
+  const valid = {
+    title: "Cena juntos",
+    description: "",
+    date: "2026-12-24",
+    startTime: "18:30",
+    endTime: "20:00",
+    location: "",
+    category: "romantica",
+    budget: "125.50",
+    notes: "",
+    status: "planned",
+    appointmentId: "",
+    requestKey: "3f1c1c9e-8d7a-4c7b-9a51-2b7f4f3a9d10",
+    imagePath: "",
+  };
+
+  it("normaliza campos opcionales y acepta una cita válida", () => {
+    expect(appointmentSchema.parse(valid)).toMatchObject({
+      description: null,
+      location: null,
+      budget: 125.5,
+      notes: null,
+    });
+  });
+
+  it("rechaza fechas imposibles, horas invertidas y presupuestos negativos", () => {
+    expect(appointmentSchema.safeParse({ ...valid, date: "2026-02-31" }).success).toBe(false);
+    expect(appointmentSchema.safeParse({ ...valid, endTime: "18:00" }).success).toBe(false);
+    expect(appointmentSchema.safeParse({ ...valid, budget: "-10" }).success).toBe(false);
   });
 });
 

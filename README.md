@@ -9,7 +9,7 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Registro, inicio de sesión, perfiles, creación y vinculación de parejas | ✅ Implementada |
-| 2 | Citas, listado y calendario | Pendiente |
+| 2 | Citas compartidas, listado, edición y calendario en tiempo real | ✅ Implementada |
 | 3 | Citas sorpresa y contenido bloqueado | Pendiente |
 | 4 | Gustos, notas, fechas importantes, recuerdos y fotos | Pendiente |
 | 5 | Google Calendar y notificaciones avanzadas | Pendiente |
@@ -83,11 +83,11 @@ supabase/migrations/   SQL versionado (tablas, RLS, funciones RPC, Storage)
 tests/db/              Pruebas de RLS con PGlite
 src/app/               Rutas (App Router)
   (auth)/              login, registro, recuperar, nueva-contrasena
-  (app)/               zona privada: inicio, pareja, perfil
+  (app)/               zona privada: inicio, citas, pareja, perfil
   auth/confirm/        destino de los enlaces de los correos
   invitacion/[token]/  aceptar invitación
 src/components/        ui/ (sistema de diseño), layout/, couple/, profile/, forms/
-src/features/*/        Server Actions por módulo
+src/features/*/        Server Actions y componentes por módulo
 src/lib/               supabase/ (clientes), dal.ts, validation.ts, dates.ts, ...
 src/proxy.ts           Renovación de sesión y redirecciones optimistas
 ```
@@ -100,6 +100,7 @@ src/proxy.ts           Renovación de sesión y redirecciones optimistas
 - Invitaciones: token aleatorio de ~244 bits, se guarda solo su SHA-256, un solo uso, caducan en 7 días, anulables; límite de 10 por hora.
 - La sesión se valida en el servidor con `getUser()`/`getClaims()`; `proxy.ts` es solo una comprobación optimista.
 - Avatares en bucket **privado**, cada persona solo escribe en su carpeta; se sirven con URLs firmadas de 1 hora; la imagen se recorta y re-codifica en el navegador (elimina EXIF/GPS).
+- Citas vinculadas al identificador de la pareja con RLS; sus portadas se guardan en un bucket privado y los cambios se transmiten por Supabase Realtime.
 - Redirecciones `?next=` validadas contra redirecciones abiertas; cabeceras de seguridad y `Referrer-Policy: no-referrer` en las invitaciones.
 - Mensajes de error que no revelan si un email está registrado.
 

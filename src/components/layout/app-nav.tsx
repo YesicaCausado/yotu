@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HeartHandshake, House, UserRound } from "lucide-react";
+import { CalendarDays, HeartHandshake, House, UserRound } from "lucide-react";
 
-// Solo se muestran secciones ya implementadas; las fases siguientes añadirán las suyas.
 const items = [
   { href: "/inicio", label: "Inicio", Icon: House },
+  { href: "/citas", label: "Nuestras citas", Icon: CalendarDays },
   { href: "/pareja", label: "Pareja", Icon: HeartHandshake },
   { href: "/perfil", label: "Perfil", Icon: UserRound },
 ];
@@ -40,7 +40,7 @@ export function AppNav({ variant }: { variant: "top" | "bottom" }) {
       aria-label="Principal"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-cream-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
     >
-      <ul className="mx-auto grid max-w-md grid-cols-3">
+      <ul className="mx-auto grid max-w-md grid-cols-4">
         {items.map(({ href, label, Icon }) => (
           <li key={href}>
             <Link

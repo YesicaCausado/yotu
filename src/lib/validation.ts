@@ -94,6 +94,47 @@ export const coupleSchema = z.object({
   timezone,
 });
 
+const appointmentDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Elige una fecha válida.")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  }, "Elige una fecha válida.");
+const appointmentTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Elige una hora válida.");
+const optionalAppointmentText = (max: number) =>
+  z.string().trim().max(max, `Usa como máximo ${max} caracteres.`).transform((value) => value || null);
+
+export const appointmentCategories = ["romantica", "comida", "paseo", "cine", "viaje", "celebracion", "otra"] as const;
+export const appointmentStatuses = ["planned", "completed", "cancelled"] as const;
+
+export const appointmentSchema = z
+  .object({
+    title: z.string().trim().min(1, "Escribe el nombre de la cita.").max(100, "Usa como máximo 100 caracteres."),
+    description: optionalAppointmentText(3000),
+    date: appointmentDate,
+    startTime: appointmentTime,
+    endTime: z.union([appointmentTime, z.literal("")]).transform((value) => value || null),
+    location: optionalAppointmentText(200),
+    category: z.enum(appointmentCategories),
+    budget: z
+      .string()
+      .trim()
+      .transform((value) => (value === "" ? null : value))
+      .refine((value) => value === null || (/^\d{1,8}(\.\d{1,2})?$/.test(value) && Number(value) <= 99_999_999.99), "Escribe un presupuesto válido.")
+      .transform((value) => (value === null ? null : Number(value))),
+    notes: optionalAppointmentText(3000),
+    status: z.enum(appointmentStatuses),
+    appointmentId: z.union([z.uuid(), z.literal("")]),
+    requestKey: z.uuid(),
+    imagePath: z.string().max(400),
+  })
+  .refine((value) => !value.endTime || value.endTime > value.startTime, {
+    path: ["endTime"],
+    message: "La hora de finalización debe ser posterior al inicio.",
+  });
+
 /** Tokens de invitación: 64 caracteres hexadecimales generados por la base de datos. */
 export const invitationTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
 

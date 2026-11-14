@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Couple, Profile } from "@/types/database";
+import type { Appointment, Couple, Profile } from "@/types/database";
 
 export type ProfileWithAvatar = Profile & { avatarUrl: string | null };
 
@@ -10,6 +10,8 @@ export type CoupleContext = {
   couple: Couple;
   partner: ProfileWithAvatar | null;
 };
+
+export type AppointmentWithCover = Appointment & { coverUrl: string | null };
 
 /**
  * Usuario autenticado verificado contra Supabase Auth (no solo la cookie).
@@ -86,3 +88,32 @@ export const getCoupleContext = cache(async (): Promise<CoupleContext | null> =>
 
   return { couple, partner };
 });
+
+/** Citas visibles para la pareja actual, con URL temporal para sus portadas privadas. */
+export async function getCoupleAppointments(coupleId: string): Promise<AppointmentWithCover[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("couple_id", coupleId)
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true });
+  if (error) throw new Error("No se pudieron cargar las citas.");
+
+  const paths = (data ?? []).map((appointment) => appointment.image_path).filter((path): path is string => Boolean(path));
+  const urls = new Map<string, string>();
+  if (paths.length > 0) {
+    const { data: signedUrls, error: storageError } = await supabase.storage
+      .from("appointment-covers")
+      .createSignedUrls(paths, 60 * 60);
+    if (storageError) throw new Error("No se pudieron cargar las imágenes de las citas.");
+    signedUrls?.forEach((item) => {
+      if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+    });
+  }
+
+  return (data ?? []).map((appointment) => ({
+    ...appointment,
+    coverUrl: appointment.image_path ? (urls.get(appointment.image_path) ?? null) : null,
+  }));
+}

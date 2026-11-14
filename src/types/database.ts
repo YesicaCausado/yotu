@@ -80,6 +80,69 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      appointments: {
+        Row: {
+          id: string;
+          couple_id: string;
+          request_key: string;
+          created_by: string | null;
+          title: string;
+          description: string | null;
+          date: string;
+          start_time: string;
+          end_time: string | null;
+          location: string | null;
+          category: string;
+          image_path: string | null;
+          budget: number | null;
+          notes: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          couple_id: string;
+          request_key: string;
+          created_by?: string | null;
+          title: string;
+          description?: string | null;
+          date: string;
+          start_time: string;
+          end_time?: string | null;
+          location?: string | null;
+          category: string;
+          image_path?: string | null;
+          budget?: number | null;
+          notes?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          date?: string;
+          start_time?: string;
+          end_time?: string | null;
+          location?: string | null;
+          category?: string;
+          image_path?: string | null;
+          budget?: number | null;
+          notes?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "appointments_couple_id_fkey";
+            columns: ["couple_id"];
+            isOneToOne: false;
+            referencedRelation: "couples";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -132,3 +195,4 @@ export type Profile = PublicTables["profiles"]["Row"];
 export type Couple = PublicTables["couples"]["Row"];
 export type CoupleMember = PublicTables["couple_members"]["Row"];
 export type CoupleInvitation = PublicTables["couple_invitations"]["Row"];
+export type Appointment = PublicTables["appointments"]["Row"];
