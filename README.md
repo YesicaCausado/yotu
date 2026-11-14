@@ -60,7 +60,7 @@ cp .env.example .env.local
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública `anon`; segura en el navegador porque la RLS protege los datos |
-| `NEXT_PUBLIC_SITE_URL` | URL pública de la app (enlaces de correos e invitaciones) |
+| `NEXT_PUBLIC_SITE_URL` | URL de respaldo para enlaces; en el navegador se deriva del dominio actual y el `basePath` |
 
 La aplicación no necesita una clave secreta de servidor. **Nunca** uses la clave `service_role` con prefijo `NEXT_PUBLIC_`.
 
