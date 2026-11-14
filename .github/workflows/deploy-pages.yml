@@ -39,8 +39,14 @@ jobs:
           pnpm test
       - name: Validate Supabase public configuration
         run: |
-          test -n "$NEXT_PUBLIC_SUPABASE_URL"
-          test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::Falta la variable de Actions NEXT_PUBLIC_SUPABASE_URL. Créala en Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
+          if [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::error::Falta la variable de Actions NEXT_PUBLIC_SUPABASE_ANON_KEY. Créala en Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
