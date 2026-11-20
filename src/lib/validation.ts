@@ -108,6 +108,7 @@ const optionalAppointmentText = (max: number) =>
 
 export const appointmentCategories = ["romantica", "comida", "paseo", "cine", "viaje", "celebracion", "otra"] as const;
 export const appointmentStatuses = ["planned", "completed", "cancelled"] as const;
+export const budgetModes = ["invites", "accepts_contributions", "split", "shared_budget"] as const;
 export const personalActivityCategories = [
   "university",
   "work",
@@ -135,8 +136,10 @@ export const appointmentSchema = z
       .string()
       .trim()
       .transform((value) => (value === "" ? null : value))
-      .refine((value) => value === null || (/^\d{1,8}(\.\d{1,2})?$/.test(value) && Number(value) <= 99_999_999.99), "Escribe un presupuesto válido.")
+      .refine((value) => value === null || (/^\d{1,8}$/.test(value) && Number(value) <= 99_999_999), "Escribe un presupuesto válido en pesos colombianos.")
       .transform((value) => (value === null ? null : Number(value))),
+    budgetMode: z.enum(budgetModes).default("invites"),
+    budgetCurrency: z.literal("COP").default("COP"),
     notes: optionalAppointmentText(3000),
     status: z.enum(appointmentStatuses),
     appointmentId: z.union([z.uuid(), z.literal("")]),
@@ -147,6 +150,62 @@ export const appointmentSchema = z
     path: ["endTime"],
     message: "La hora de finalización debe ser posterior al inicio.",
   });
+
+const budgetAmount = z
+  .string()
+  .trim()
+  .regex(/^\d{1,10}$/, "Escribe un valor entero válido en pesos colombianos.")
+  .transform(Number)
+  .refine((value) => Number.isFinite(value) && value <= 9_999_999_999.99, "El valor excede el máximo permitido.");
+
+export const budgetProposalSchema = z.object({
+  appointmentId: z.uuid(),
+  requestKey: z.uuid(),
+  proposerAmount: budgetAmount,
+  recipientAmount: budgetAmount,
+  message: optionalAppointmentText(500),
+}).refine((value) => value.proposerAmount + value.recipientAmount > 0, {
+  path: ["proposerAmount"],
+  message: "La propuesta debe incluir al menos un aporte.",
+});
+
+export const budgetResponseSchema = z.object({
+  proposalId: z.uuid(),
+  action: z.enum(["accept", "reject", "counter"]),
+  requestKey: z.union([z.uuid(), z.literal("")]),
+  proposerAmount: z.string().trim(),
+  recipientAmount: z.string().trim(),
+  message: optionalAppointmentText(500),
+}).transform((value, context) => {
+  if (value.action !== "counter") {
+    return { ...value, requestKey: null, proposerAmount: null, recipientAmount: null };
+  }
+  const amounts = z.object({ proposerAmount: budgetAmount, recipientAmount: budgetAmount }).safeParse(value);
+  if (!amounts.success) {
+    for (const issue of amounts.error.issues) {
+      context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+    }
+    return z.NEVER;
+  }
+  if (!value.requestKey) {
+    context.addIssue({ code: "custom", path: ["requestKey"], message: "Vuelve a enviar la contraoferta." });
+    return z.NEVER;
+  }
+  if (amounts.data.proposerAmount + amounts.data.recipientAmount <= 0) {
+    context.addIssue({ code: "custom", path: ["proposerAmount"], message: "La contraoferta debe incluir al menos un aporte." });
+    return z.NEVER;
+  }
+  return { ...value, requestKey: value.requestKey, ...amounts.data };
+});
+
+export const appointmentExpenseSchema = z.object({
+  appointmentId: z.uuid(),
+  requestKey: z.uuid(),
+  concept: z.string().trim().min(1, "Escribe el concepto del gasto.").max(120),
+  amount: budgetAmount.refine((value) => value > 0, "El gasto debe ser mayor que cero."),
+  paidBy: z.uuid(),
+  coveredBy: z.uuid(),
+});
 
 export const personalActivitySchema = z
   .object({

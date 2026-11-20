@@ -9,7 +9,7 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Registro, inicio de sesión, perfiles, creación y vinculación de parejas | ✅ Implementada |
-| 2 | Citas compartidas, actividades personales, privacidad, calendario combinado, notas diarias y disponibilidad en tiempo real | ✅ Implementada |
+| 2 | Citas y calendario compartidos, actividades personales, privacidad, notas diarias, disponibilidad y acuerdos económicos voluntarios | ✅ Implementada |
 | 3 | Citas sorpresa y contenido bloqueado | Pendiente |
 | 4 | Gustos, notas, fechas importantes, recuerdos y fotos | Pendiente |
 | 5 | Google Calendar y notificaciones avanzadas | Pendiente |
@@ -116,6 +116,8 @@ src/lib/               supabase/ (clientes), dal.ts, validation.ts, dates.ts, ..
 - Citas vinculadas al identificador de la pareja con RLS; sus portadas se guardan en un bucket privado y los cambios se transmiten por Supabase Realtime.
 - Actividades personales asociadas a su creador y pareja; la información privada queda separada y solo se consulta mediante RPC con campos filtrados según visibilidad. Las notas diarias tienen RLS exclusiva del usuario.
 - El calendario conjunto recibe solo invalidaciones sin contenido de horarios visibles; los eventos privados no generan sincronización hacia la pareja. La disponibilidad considera 07:00–22:00 y muestra espacios desde 60 minutos.
+- Los presupuestos de citas se organizan en COP mediante invitación, aportes, división o presupuesto conjunto. Las propuestas y contraofertas se conservan; solo una propuesta aceptada por ambos actualiza el acuerdo. Los gastos reales registran quién pagó y quién los asumió; no hay transferencias ni deudas automáticas.
+- Los avisos económicos se guardan para cada integrante y se sincronizan en tiempo real; los acuerdos aceptados no se pueden editar directamente y cualquier cambio de reparto requiere otra propuesta aceptada.
 - Redirecciones `?next=` validadas contra redirecciones abiertas; `Referrer-Policy: no-referrer` se define en los metadatos estáticos, incluidos los enlaces de invitación.
 - Mensajes de error que no revelan si un email está registrado.
 

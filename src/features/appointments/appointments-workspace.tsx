@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   CalendarDays,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -21,12 +22,14 @@ import {
   X,
 } from "lucide-react";
 import { AppointmentForm } from "@/features/appointments/appointment-form";
+import { BudgetPanel } from "@/features/appointments/budget-panel";
 import { deleteAppointment } from "@/features/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
 import { getCoupleAppointments } from "@/lib/dal";
 import { dayLabel, getCalendarDays, isoDate, offsetDate, parseDate } from "@/lib/calendar";
 import { todayIn } from "@/lib/dates";
 import type { AppointmentWithCover } from "@/lib/dal";
+import type { BudgetNotificationType, Database } from "@/types/database";
 import type { FormState } from "@/lib/form";
 import { FormMessage } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,16 @@ const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 type ViewFilter = "upcoming" | "completed" | "cancelled";
 type CalendarMode = "month" | "week";
+type BudgetNotification = Database["public"]["Tables"]["appointment_budget_notifications"]["Row"];
+
+const BUDGET_NOTIFICATION_LABELS: Record<BudgetNotificationType, string> = {
+  proposal_received: "Recibiste una propuesta de aporte.",
+  proposal_accepted: "Aceptaron tu propuesta.",
+  proposal_rejected: "Rechazaron una propuesta; no hay ningún compromiso.",
+  counteroffer_received: "Recibiste una contraoferta.",
+  agreement_confirmed: "Se confirmó un acuerdo económico.",
+  budget_updated: "Se actualizó el presupuesto estimado.",
+};
 
 function appointmentGroup(appointment: AppointmentWithCover, today: string): ViewFilter {
   if (appointment.status === "cancelled") return "cancelled";
@@ -65,10 +78,14 @@ export function AppointmentsWorkspace({
   appointments: initialAppointments,
   coupleId,
   timeZone,
+  userId,
+  partner,
 }: {
   appointments: AppointmentWithCover[];
   coupleId: string;
   timeZone: string;
+  userId: string;
+  partner: { id: string; name: string } | null;
 }) {
   const [appointments, setAppointments] = useState(initialAppointments);
   const today = todayIn(timeZone);
@@ -81,11 +98,30 @@ export function AppointmentsWorkspace({
   const [actionState, setActionState] = useState<FormState | null>(null);
   const [pending, startTransition] = useTransition();
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [budgetNotifications, setBudgetNotifications] = useState<BudgetNotification[]>([]);
 
   const refreshAppointments = useCallback(async () => {
     const updated = await getCoupleAppointments(coupleId);
     setAppointments(updated);
   }, [coupleId]);
+  const refreshBudgetNotifications = useCallback(async () => {
+    const { data, error } = await createClient()
+      .from("appointment_budget_notifications")
+      .select("*")
+      .eq("recipient_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error("No se pudieron cargar los avisos de presupuesto.");
+    setBudgetNotifications(data ?? []);
+  }, [userId]);
+
+  useEffect(() => {
+    void Promise.resolve()
+      .then(refreshBudgetNotifications)
+      .catch(() => {
+        setActionState({ status: "error", message: "No se pudieron cargar los avisos de presupuesto." });
+      });
+  }, [refreshBudgetNotifications]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -100,11 +136,23 @@ export function AppointmentsWorkspace({
           });
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointment_budget_notifications", filter: `recipient_id=eq.${userId}` },
+        () => {
+          void refreshBudgetNotifications().catch(() => {
+            setActionState({ status: "error", message: "No se pudieron sincronizar los avisos de presupuesto." });
+          });
+        },
+      )
       .subscribe((status) => {
         setRealtimeConnected(status === "SUBSCRIBED");
         if (status === "SUBSCRIBED") {
           void refreshAppointments().catch(() => {
             setActionState({ status: "error", message: "No se pudo sincronizar el calendario. Actualiza la página." });
+          });
+          void refreshBudgetNotifications().catch(() => {
+            setActionState({ status: "error", message: "No se pudieron cargar los avisos de presupuesto." });
           });
         }
       });
@@ -112,7 +160,7 @@ export function AppointmentsWorkspace({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [coupleId, refreshAppointments]);
+  }, [coupleId, refreshAppointments, refreshBudgetNotifications, userId]);
 
   const grouped = useMemo(() => {
     const groups: Record<ViewFilter, AppointmentWithCover[]> = {
@@ -199,6 +247,31 @@ export function AppointmentsWorkspace({
         )}
       </div>
       {actionState && <FormMessage state={actionState} />}
+      {budgetNotifications.some((notification) => !notification.seen_at) && (
+        <Card className="border border-blush-200 bg-blush-100">
+          <div className="mb-3 flex items-center gap-2 text-wine-700">
+            <Bell className="size-5" aria-hidden />
+            <h2 className="font-display text-xl font-semibold">Avisos de presupuesto</h2>
+          </div>
+          <ul className="divide-y divide-wine-700/10">
+            {budgetNotifications.filter((notification) => !notification.seen_at).map((notification) => {
+              const appointment = appointments.find((item) => item.id === notification.appointment_id);
+              return (
+                <li key={notification.id} className="py-2 first:pt-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveAppointmentId(notification.appointment_id)}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <span className="text-sm text-wine-800">{BUDGET_NOTIFICATION_LABELS[notification.event_type]} <strong>{appointment?.title ?? "Cita compartida"}</strong></span>
+                    <span className="shrink-0 text-xs underline">Ver</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
 
       <Card>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -372,6 +445,8 @@ export function AppointmentsWorkspace({
           appointment={activeAppointment}
           group={appointmentGroup(activeAppointment, today)}
           pending={pending}
+          userId={userId}
+          partner={partner}
           onClose={() => setActiveAppointmentId(null)}
           onEdit={() => { setFormDate(activeAppointment.date); setFormAppointment(activeAppointment); setActiveAppointmentId(null); }}
           onDelete={() => remove(activeAppointment)}
@@ -432,6 +507,8 @@ function AppointmentDetails({
   appointment,
   group,
   pending,
+  userId,
+  partner,
   onClose,
   onEdit,
   onDelete,
@@ -439,6 +516,8 @@ function AppointmentDetails({
   appointment: AppointmentWithCover;
   group: ViewFilter;
   pending: boolean;
+  userId: string;
+  partner: { id: string; name: string } | null;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -460,8 +539,9 @@ function AppointmentDetails({
           <p className="mt-3 flex items-center gap-2 text-sm text-ink-700"><CalendarDays className="size-4 text-wine-600" aria-hidden /> {dayLabel(appointment.date)} · {appointment.start_time.slice(0, 5)}{appointment.end_time && ` – ${appointment.end_time.slice(0, 5)}`}</p>
           {appointment.location && <p className="mt-2 flex items-center gap-2 text-sm text-ink-700"><MapPin className="size-4 text-wine-600" aria-hidden /> {appointment.location}</p>}
           {appointment.description && <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-ink-700">{appointment.description}</p>}
-          {appointment.budget !== null && <p className="mt-3 text-sm text-ink-500">Presupuesto: {new Intl.NumberFormat("es", { style: "currency", currency: "USD" }).format(appointment.budget)}</p>}
+          {appointment.budget !== null && <p className="mt-3 text-sm text-ink-500">Presupuesto: {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(appointment.budget)}</p>}
           {appointment.notes && <p className="mt-3 rounded-2xl bg-blush-100 p-3 text-sm text-ink-700">{appointment.notes}</p>}
+          <BudgetPanel appointment={appointment} userId={userId} partner={partner} />
           <div className="mt-6 flex justify-end gap-2 border-t border-line pt-4">
             <Button type="button" variant="secondary" onClick={onEdit}>Editar cita</Button>
             <Button type="button" variant="danger" onClick={onDelete} disabled={pending}><Trash2 className="size-4" aria-hidden /> Eliminar</Button>

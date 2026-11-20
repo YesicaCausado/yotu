@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   appointmentSchema,
+  appointmentExpenseSchema,
+  budgetProposalSchema,
+  budgetResponseSchema,
   coupleSchema,
   invitationTokenSchema,
   isOwnAvatarPath,
@@ -63,7 +66,7 @@ describe("appointmentSchema", () => {
     endTime: "20:00",
     location: "",
     category: "romantica",
-    budget: "125.50",
+    budget: "125",
     notes: "",
     status: "planned",
     appointmentId: "",
@@ -75,7 +78,9 @@ describe("appointmentSchema", () => {
     expect(appointmentSchema.parse(valid)).toMatchObject({
       description: null,
       location: null,
-      budget: 125.5,
+      budget: 125,
+      budgetMode: "invites",
+      budgetCurrency: "COP",
       notes: null,
     });
   });
@@ -84,6 +89,69 @@ describe("appointmentSchema", () => {
     expect(appointmentSchema.safeParse({ ...valid, date: "2026-02-31" }).success).toBe(false);
     expect(appointmentSchema.safeParse({ ...valid, endTime: "18:00" }).success).toBe(false);
     expect(appointmentSchema.safeParse({ ...valid, budget: "-10" }).success).toBe(false);
+    expect(appointmentSchema.safeParse({ ...valid, budget: "125.50" }).success).toBe(false);
+  });
+
+  it("valida las modalidades económicas de la cita", () => {
+    expect(appointmentSchema.safeParse({ ...valid, budgetMode: "split" }).success).toBe(true);
+    expect(appointmentSchema.safeParse({ ...valid, budgetMode: "unknown" }).success).toBe(false);
+    expect(appointmentSchema.safeParse({ ...valid, budgetCurrency: "USD" }).success).toBe(false);
+  });
+});
+
+describe("validaciones del presupuesto compartido", () => {
+  const proposal = {
+    appointmentId: uid,
+    requestKey: uid,
+    proposerAmount: "70000",
+    recipientAmount: "30000",
+    message: "Si te queda cómodo",
+  };
+
+  it("acepta propuestas voluntarias y rechaza valores inválidos o reparto nulo", () => {
+    expect(budgetProposalSchema.parse(proposal).proposerAmount).toBe(70000);
+    expect(budgetProposalSchema.safeParse({ ...proposal, proposerAmount: "-1" }).success).toBe(false);
+    expect(budgetProposalSchema.safeParse({ ...proposal, proposerAmount: "0", recipientAmount: "0" }).success).toBe(false);
+  });
+
+  it("solo requiere nuevos montos para contraofertar", () => {
+    expect(budgetResponseSchema.parse({
+      proposalId: uid,
+      action: "accept",
+      requestKey: "",
+      proposerAmount: "",
+      recipientAmount: "",
+      message: "",
+    })).toMatchObject({ action: "accept", proposerAmount: null, recipientAmount: null });
+    expect(budgetResponseSchema.safeParse({
+      proposalId: uid,
+      action: "counter",
+      requestKey: uid,
+      proposerAmount: "40000",
+      recipientAmount: "60000",
+      message: "",
+    }).success).toBe(true);
+    expect(budgetResponseSchema.safeParse({
+      proposalId: uid,
+      action: "counter",
+      requestKey: "",
+      proposerAmount: "0",
+      recipientAmount: "0",
+      message: "",
+    }).success).toBe(false);
+  });
+
+  it("valida cada gasto y quién lo pagó y asumió", () => {
+    const expense = {
+      appointmentId: uid,
+      requestKey: uid,
+      concept: "Cena",
+      amount: "85000",
+      paidBy: uid,
+      coveredBy: uid,
+    };
+    expect(appointmentExpenseSchema.parse(expense).amount).toBe(85000);
+    expect(appointmentExpenseSchema.safeParse({ ...expense, amount: "0" }).success).toBe(false);
   });
 });
 

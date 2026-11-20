@@ -21,6 +21,12 @@ const CATEGORY_LABELS: Record<(typeof appointmentCategories)[number], string> = 
 };
 const ACCEPTED_IMAGES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const BUDGET_MODES = [
+  { value: "invites", title: "Yo invito", detail: "Asumo el presupuesto; mi pareja puede ofrecer aportar." },
+  { value: "accepts_contributions", title: "Acepto aportes", detail: "Mi pareja puede proponer cuánto desea aportar." },
+  { value: "split", title: "Dividimos los gastos", detail: "Proponemos y acordamos cuánto pone cada quien." },
+  { value: "shared_budget", title: "Presupuesto compartido", detail: "Anotamos lo disponible y acordamos el total juntos." },
+] as const;
 
 export function AppointmentForm({
   coupleId,
@@ -196,10 +202,33 @@ export function AppointmentForm({
             <FieldError state={state} name="description" />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink-700">Presupuesto estimado (opcional)</span>
-            <input name="budget" type="number" min="0" max="99999999.99" step="0.01" defaultValue={appointment?.budget ?? ""} placeholder="0.00" className={inputClass} />
+            <span className="text-sm font-medium text-ink-700">Presupuesto estimado en COP (opcional)</span>
+            <input name="budget" type="number" min="0" max="99999999.99" step="1" defaultValue={appointment?.budget ?? ""} placeholder="100000" className={inputClass} />
             <FieldError state={state} name="budget" />
           </label>
+          <input type="hidden" name="budgetCurrency" value="COP" />
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-2 text-sm font-medium text-ink-700">¿Cómo quieren organizar el presupuesto?</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {BUDGET_MODES.map((mode) => (
+                <label key={mode.value} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-cream-100 p-3 has-[:checked]:border-wine-400 has-[:checked]:bg-blush-100">
+                  <input
+                    type="radio"
+                    name="budgetMode"
+                    value={mode.value}
+                    defaultChecked={(appointment?.budget_mode ?? "invites") === mode.value}
+                    className="mt-1 accent-wine-600"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-wine-700">{mode.title}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-ink-500">{mode.detail}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-500">Aportes voluntarios. Nada se considera acordado hasta que ambos acepten una propuesta.</p>
+            <FieldError state={state} name="budgetMode" />
+          </fieldset>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-ink-700">Estado</span>
             <select name="status" defaultValue={appointment?.status ?? "planned"} disabled={!appointment} className={inputClass}>

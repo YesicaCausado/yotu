@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 import { AppNav } from "@/components/layout/app-nav";
+import { BudgetNotificationLink } from "@/components/layout/budget-notification-link";
 import { UserMenu } from "@/components/layout/user-menu";
 import { getUser } from "@/lib/dal";
 import { Alert } from "@/components/ui/alert";
@@ -45,6 +46,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4">
           <Logo href="/inicio" />
           <AppNav variant="top" />
+          <BudgetNotificationLink />
           <UserMenu />
         </div>
       </header>

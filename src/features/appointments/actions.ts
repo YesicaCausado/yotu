@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/client";
 import { getUser } from "@/lib/dal";
 import { dbErrorMessage, GENERIC_ERROR } from "@/lib/errors";
 import { errorState, successState, validationError, type FormState } from "@/lib/form";
-import { appointmentSchema } from "@/lib/validation";
+import {
+  appointmentExpenseSchema,
+  appointmentSchema,
+  budgetProposalSchema,
+  budgetResponseSchema,
+} from "@/lib/validation";
 
 const SESSION_EXPIRED = "Tu sesión ha caducado. Vuelve a iniciar sesión.";
 
@@ -40,6 +45,8 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
     location: formData.get("location") ?? "",
     category: formData.get("category"),
     budget: formData.get("budget") ?? "",
+    budgetMode: formData.get("budgetMode") ?? "invites",
+    budgetCurrency: formData.get("budgetCurrency") ?? "COP",
     notes: formData.get("notes") ?? "",
     status: formData.get("status") ?? "planned",
     appointmentId: formData.get("appointmentId") ?? "",
@@ -65,6 +72,8 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
     category: parsed.data.category,
     image_path: parsed.data.imagePath || null,
     budget: parsed.data.budget,
+    budget_mode: parsed.data.budgetMode,
+    budget_currency: parsed.data.budgetCurrency,
     notes: parsed.data.notes,
     status: parsed.data.appointmentId ? parsed.data.status : "planned",
   };
@@ -116,6 +125,84 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
   }
 
   return successState("¡Una nueva aventura está por comenzar!");
+}
+
+export async function createBudgetProposal(formData: FormData): Promise<FormState> {
+  if (!(await getUser())) return errorState(SESSION_EXPIRED);
+  const parsed = budgetProposalSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    requestKey: formData.get("requestKey"),
+    proposerAmount: formData.get("proposerAmount"),
+    recipientAmount: formData.get("recipientAmount"),
+    message: formData.get("message") ?? "",
+  });
+  if (!parsed.success) return validationError(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("create_appointment_budget_proposal", {
+    p_appointment_id: parsed.data.appointmentId,
+    p_request_key: parsed.data.requestKey,
+    p_proposer_amount: parsed.data.proposerAmount,
+    p_recipient_amount: parsed.data.recipientAmount,
+    p_message: parsed.data.message,
+  });
+  if (error) return errorState(dbErrorMessage(error));
+  return successState("Propuesta enviada. El acuerdo solo cambia cuando ambos la aceptan.");
+}
+
+export async function respondToBudgetProposal(formData: FormData): Promise<FormState> {
+  if (!(await getUser())) return errorState(SESSION_EXPIRED);
+  const parsed = budgetResponseSchema.safeParse({
+    proposalId: formData.get("proposalId"),
+    action: formData.get("action"),
+    requestKey: formData.get("requestKey") ?? "",
+    proposerAmount: formData.get("proposerAmount") ?? "",
+    recipientAmount: formData.get("recipientAmount") ?? "",
+    message: formData.get("message") ?? "",
+  });
+  if (!parsed.success) return validationError(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("respond_to_appointment_budget_proposal", {
+    p_proposal_id: parsed.data.proposalId,
+    p_action: parsed.data.action,
+    p_request_key: parsed.data.requestKey,
+    p_proposer_amount: parsed.data.proposerAmount,
+    p_recipient_amount: parsed.data.recipientAmount,
+    p_message: parsed.data.message,
+  });
+  if (error) return errorState(dbErrorMessage(error));
+  const message = parsed.data.action === "accept"
+    ? "Propuesta aceptada. El acuerdo quedó actualizado para ambos."
+    : parsed.data.action === "reject"
+      ? "Propuesta rechazada. No se creó ningún compromiso."
+      : "Contraoferta enviada; el acuerdo vigente no cambia hasta que la acepten.";
+  return successState(message);
+}
+
+export async function addAppointmentExpense(formData: FormData): Promise<FormState> {
+  if (!(await getUser())) return errorState(SESSION_EXPIRED);
+  const parsed = appointmentExpenseSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    requestKey: formData.get("requestKey"),
+    concept: formData.get("concept"),
+    amount: formData.get("amount"),
+    paidBy: formData.get("paidBy"),
+    coveredBy: formData.get("coveredBy"),
+  });
+  if (!parsed.success) return validationError(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("add_appointment_expense", {
+    p_appointment_id: parsed.data.appointmentId,
+    p_request_key: parsed.data.requestKey,
+    p_concept: parsed.data.concept,
+    p_amount: parsed.data.amount,
+    p_paid_by: parsed.data.paidBy,
+    p_covered_by: parsed.data.coveredBy,
+  });
+  if (error) return errorState(dbErrorMessage(error));
+  return successState("Gasto registrado, sin generar deudas ni transferencias.");
 }
 
 export async function deleteAppointment(appointmentId: string): Promise<FormState> {

@@ -95,6 +95,8 @@ export type Database = {
           category: string;
           image_path: string | null;
           budget: number | null;
+          budget_mode: BudgetMode;
+          budget_currency: "COP";
           notes: string | null;
           status: string;
           created_at: string;
@@ -114,6 +116,8 @@ export type Database = {
           category: string;
           image_path?: string | null;
           budget?: number | null;
+          budget_mode?: BudgetMode;
+          budget_currency?: "COP";
           notes?: string | null;
           status?: string;
           created_at?: string;
@@ -129,6 +133,8 @@ export type Database = {
           category?: string;
           image_path?: string | null;
           budget?: number | null;
+          budget_mode?: BudgetMode;
+          budget_currency?: "COP";
           notes?: string | null;
           status?: string;
           updated_at?: string;
@@ -247,6 +253,77 @@ export type Database = {
           },
         ];
       };
+      appointment_budget_proposals: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          couple_id: string;
+          request_key: string;
+          proposer_id: string;
+          recipient_id: string;
+          proposer_amount: number;
+          recipient_amount: number;
+          message: string | null;
+          status: BudgetProposalStatus;
+          parent_proposal_id: string | null;
+          responded_by: string | null;
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      appointment_budget_agreements: {
+        Row: {
+          appointment_id: string;
+          couple_id: string;
+          first_user_id: string;
+          first_amount: number;
+          second_user_id: string;
+          second_amount: number;
+          total_amount: number;
+          accepted_proposal_id: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      appointment_expenses: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          couple_id: string;
+          request_key: string;
+          created_by: string;
+          concept: string;
+          amount: number;
+          paid_by: string;
+          covered_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      appointment_budget_notifications: {
+        Row: {
+          id: string;
+          couple_id: string;
+          appointment_id: string;
+          recipient_id: string;
+          actor_id: string | null;
+          proposal_id: string | null;
+          event_type: BudgetNotificationType;
+          created_at: string;
+          seen_at: string | null;
+        };
+        Insert: never;
+        Update: { seen_at?: string | null };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -316,6 +393,38 @@ export type Database = {
           personal_notes: string | null;
         }[];
       };
+      create_appointment_budget_proposal: {
+        Args: {
+          p_appointment_id: string;
+          p_request_key: string;
+          p_proposer_amount: number;
+          p_recipient_amount: number;
+          p_message: string | null;
+        };
+        Returns: string;
+      };
+      respond_to_appointment_budget_proposal: {
+        Args: {
+          p_proposal_id: string;
+          p_action: "accept" | "reject" | "counter";
+          p_request_key: string | null;
+          p_proposer_amount: number | null;
+          p_recipient_amount: number | null;
+          p_message: string | null;
+        };
+        Returns: string;
+      };
+      add_appointment_expense: {
+        Args: {
+          p_appointment_id: string;
+          p_request_key: string;
+          p_concept: string;
+          p_amount: number;
+          p_paid_by: string;
+          p_covered_by: string;
+        };
+        Returns: string;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
@@ -354,3 +463,12 @@ export type PersonalActivityCategory =
   | "rest"
   | "other";
 export type ActivityVisibility = "private" | "availability" | "shared";
+export type BudgetMode = "invites" | "accepts_contributions" | "split" | "shared_budget";
+export type BudgetProposalStatus = "pending" | "accepted" | "rejected" | "countered";
+export type BudgetNotificationType =
+  | "proposal_received"
+  | "proposal_accepted"
+  | "proposal_rejected"
+  | "counteroffer_received"
+  | "agreement_confirmed"
+  | "budget_updated";

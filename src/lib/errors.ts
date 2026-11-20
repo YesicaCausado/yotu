@@ -10,6 +10,11 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   invitation_used: "Esta invitación ya se utilizó.",
   invitation_expired: "Esta invitación ha caducado. Pide un enlace nuevo.",
   own_invitation: "No puedes aceptar tu propia invitación. Compártela con tu pareja.",
+  invalid_budget_proposal: "Revisa los valores de la propuesta; los aportes deben ser válidos y no crear obligaciones.",
+  budget_proposal_not_found: "Esta propuesta ya no está pendiente o no pertenece a vuestro espacio.",
+  appointment_not_found: "No encontramos esa cita en vuestro espacio.",
+  invalid_appointment_expense: "Revisa el concepto y el valor del gasto.",
+  budget_agreement_requires_new_proposal: "El modo y la moneda no se pueden cambiar después de un acuerdo aceptado.",
 };
 
 export const GENERIC_ERROR = "Algo no salió bien. Inténtalo de nuevo en unos segundos.";

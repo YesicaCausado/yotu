@@ -6,21 +6,23 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AppointmentsWorkspace } from "@/features/appointments/appointments-workspace";
-import { getCoupleAppointments, getCoupleContext, type CoupleContext, type AppointmentWithCover } from "@/lib/dal";
+import { getCoupleAppointments, getCoupleContext, getUser, type CoupleContext, type AppointmentWithCover } from "@/lib/dal";
 import { Alert } from "@/components/ui/alert";
 
 export default function AppointmentsPage() {
   const [context, setContext] = useState<CoupleContext | null>(null);
   const [appointments, setAppointments] = useState<AppointmentWithCover[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    getCoupleContext()
-      .then(async (value) => {
+    Promise.all([getCoupleContext(), getUser()])
+      .then(async ([value, user]) => {
         if (!active) return;
         setContext(value);
+        setUserId(user?.id ?? null);
         if (value) {
           const items = await getCoupleAppointments(value.couple.id);
           if (active) setAppointments(items);
@@ -46,12 +48,15 @@ export default function AppointmentsPage() {
       </Card>
     );
   }
+  if (!userId) return <Alert tone="error">Tu sesión ha caducado. Vuelve a iniciar sesión.</Alert>;
 
   return (
     <AppointmentsWorkspace
       appointments={appointments}
       coupleId={context.couple.id}
       timeZone={context.couple.timezone}
+      userId={userId}
+      partner={context.partner ? { id: context.partner.id, name: context.partner.display_name } : null}
     />
   );
 }
