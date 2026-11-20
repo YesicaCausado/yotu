@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 import { AppNav } from "@/components/layout/app-nav";
 import { BudgetNotificationLink } from "@/components/layout/budget-notification-link";
+import { CoupleTalkNotificationLink } from "@/components/layout/couple-talk-notification-link";
 import { UserMenu } from "@/components/layout/user-menu";
 import { getUser } from "@/lib/dal";
 import { Alert } from "@/components/ui/alert";
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <Logo href="/inicio" />
           <AppNav variant="top" />
           <BudgetNotificationLink />
+          <CoupleTalkNotificationLink />
           <UserMenu />
         </div>
       </header>

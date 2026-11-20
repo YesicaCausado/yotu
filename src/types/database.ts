@@ -324,6 +324,82 @@ export type Database = {
         Update: { seen_at?: string | null };
         Relationships: [];
       };
+      couple_talk_threads: {
+        Row: {
+          id: string;
+          couple_id: string;
+          created_by: string;
+          request_key: string;
+          category: CoupleTalkCategory;
+          story: string;
+          emotions: CoupleTalkEmotion[];
+          needs: CoupleTalkNeed[];
+          expectation: CoupleTalkExpectation;
+          personal_message: string | null;
+          visibility: CoupleTalkVisibility;
+          status: CoupleTalkStatus;
+          read_by: string[];
+          resolution_votes: string[];
+          pause_requested_by: string | null;
+          pause_requested_at: string | null;
+          shared_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      couple_talk_messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          couple_id: string;
+          author_id: string;
+          request_key: string;
+          quick_reply: CoupleTalkQuickReply | null;
+          body: string | null;
+          emotions: CoupleTalkEmotion[];
+          needs: CoupleTalkNeed[];
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      couple_talk_agreements: {
+        Row: {
+          id: string;
+          thread_id: string;
+          couple_id: string;
+          request_key: string;
+          proposed_by: string;
+          description: string;
+          accepted_by: string[];
+          rejected_by: string | null;
+          status: CoupleTalkAgreementStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      couple_talk_notifications: {
+        Row: {
+          id: string;
+          couple_id: string;
+          thread_id: string;
+          recipient_id: string;
+          actor_id: string | null;
+          event_type: CoupleTalkNotificationType;
+          created_at: string;
+          seen_at: string | null;
+        };
+        Insert: never;
+        Update: { seen_at?: string | null };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -425,6 +501,59 @@ export type Database = {
         };
         Returns: string;
       };
+      save_couple_talk_entry: {
+        Args: {
+          p_thread_id: string | null;
+          p_request_key: string;
+          p_action: "draft" | "share";
+          p_category: string;
+          p_story: string;
+          p_emotions: string[];
+          p_needs: string[];
+          p_expectation: string;
+          p_personal_message: string | null;
+        };
+        Returns: string;
+      };
+      delete_couple_talk_draft: {
+        Args: { p_thread_id: string };
+        Returns: undefined;
+      };
+      mark_couple_talk_read: {
+        Args: { p_thread_id: string };
+        Returns: undefined;
+      };
+      add_couple_talk_message: {
+        Args: {
+          p_thread_id: string;
+          p_request_key: string;
+          p_quick_reply: string | null;
+          p_body: string | null;
+          p_emotions: string[];
+          p_needs: string[];
+        };
+        Returns: string;
+      };
+      set_couple_talk_progress: {
+        Args: { p_thread_id: string };
+        Returns: undefined;
+      };
+      set_couple_talk_pause: {
+        Args: { p_thread_id: string; p_paused: boolean };
+        Returns: undefined;
+      };
+      set_couple_talk_resolution: {
+        Args: { p_thread_id: string; p_ready: boolean };
+        Returns: CoupleTalkStatus;
+      };
+      propose_couple_talk_agreement: {
+        Args: { p_thread_id: string; p_request_key: string; p_description: string };
+        Returns: string;
+      };
+      respond_to_couple_talk_agreement: {
+        Args: { p_agreement_id: string; p_accept: boolean };
+        Returns: undefined;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
@@ -472,3 +601,66 @@ export type BudgetNotificationType =
   | "counteroffer_received"
   | "agreement_confirmed"
   | "budget_updated";
+export type CoupleTalkVisibility = "draft" | "shared";
+export type CoupleTalkStatus =
+  | "draft"
+  | "pending_read"
+  | "read"
+  | "conversation"
+  | "in_progress"
+  | "resolved";
+export type CoupleTalkCategory =
+  | "argument"
+  | "upset"
+  | "ignored"
+  | "distant"
+  | "disappointed"
+  | "important"
+  | "pending"
+  | "other";
+export type CoupleTalkEmotion =
+  | "sadness"
+  | "anger"
+  | "disappointment"
+  | "frustration"
+  | "anxiety"
+  | "hurt"
+  | "confusion"
+  | "loneliness"
+  | "vulnerable"
+  | "affection"
+  | "calm"
+  | "exhausted";
+export type CoupleTalkNeed =
+  | "listen"
+  | "affection"
+  | "talk"
+  | "apology"
+  | "love"
+  | "space"
+  | "agreement"
+  | "solution"
+  | "understand"
+  | "recognize";
+export type CoupleTalkExpectation =
+  | "talk_now"
+  | "before_sleep"
+  | "partner_initiative"
+  | "time_to_think"
+  | "reconcile"
+  | "express_only";
+export type CoupleTalkQuickReply = "talk_solve" | "affection" | "listen" | "understand" | "think";
+export type CoupleTalkAgreementStatus = "pending" | "accepted" | "rejected";
+export type CoupleTalkNotificationType =
+  | "entry_shared"
+  | "message_received"
+  | "pause_requested"
+  | "resolution_requested"
+  | "thread_resolved"
+  | "agreement_proposed"
+  | "agreement_accepted"
+  | "agreement_rejected";
+export type CoupleTalkThread = PublicTables["couple_talk_threads"]["Row"];
+export type CoupleTalkMessage = PublicTables["couple_talk_messages"]["Row"];
+export type CoupleTalkAgreement = PublicTables["couple_talk_agreements"]["Row"];
+export type CoupleTalkNotification = PublicTables["couple_talk_notifications"]["Row"];

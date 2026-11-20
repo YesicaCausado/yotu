@@ -122,6 +122,48 @@ export const personalActivityCategories = [
 ] as const;
 export const activityVisibilities = ["private", "availability", "shared"] as const;
 export const activityColors = ["#C66B82", "#6277B8", "#3B8A7B", "#D28B44", "#8564A8", "#4F7D9B"] as const;
+export const coupleTalkCategories = ["argument", "upset", "ignored", "distant", "disappointed", "important", "pending", "other"] as const;
+export const coupleTalkEmotions = [
+  "sadness", "anger", "disappointment", "frustration", "anxiety", "hurt",
+  "confusion", "loneliness", "vulnerable", "affection", "calm", "exhausted",
+] as const;
+export const coupleTalkNeeds = [
+  "listen", "affection", "talk", "apology", "love", "space", "agreement", "solution", "understand", "recognize",
+] as const;
+export const coupleTalkExpectations = [
+  "talk_now", "before_sleep", "partner_initiative", "time_to_think", "reconcile", "express_only",
+] as const;
+export const coupleTalkQuickReplies = ["talk_solve", "affection", "listen", "understand", "think"] as const;
+
+export const coupleTalkEntrySchema = z.object({
+  threadId: z.union([z.uuid(), z.literal("")]),
+  requestKey: z.uuid(),
+  action: z.enum(["draft", "share"]),
+  category: z.enum(coupleTalkCategories),
+  story: z.string().trim().min(1, "Cuéntanos qué está pasando.").max(6000),
+  emotions: z.array(z.enum(coupleTalkEmotions)).min(1, "Elige al menos una emoción."),
+  needs: z.array(z.enum(coupleTalkNeeds)).min(1, "Elige al menos una necesidad."),
+  expectation: z.enum(coupleTalkExpectations),
+  personalMessage: optionalAppointmentText(3000),
+});
+
+export const coupleTalkMessageSchema = z.object({
+  threadId: z.uuid(),
+  requestKey: z.uuid(),
+  quickReply: z.union([z.enum(coupleTalkQuickReplies), z.literal("")]),
+  body: optionalAppointmentText(3000),
+  emotions: z.array(z.enum(coupleTalkEmotions)),
+  needs: z.array(z.enum(coupleTalkNeeds)),
+}).refine((value) => value.quickReply !== "" || value.body !== null, {
+  path: ["body"],
+  message: "Elige una respuesta rápida o escribe un mensaje.",
+});
+
+export const coupleTalkAgreementSchema = z.object({
+  threadId: z.uuid(),
+  requestKey: z.uuid(),
+  description: z.string().trim().min(1, "Escribe el acuerdo que proponen.").max(2000),
+});
 
 export const appointmentSchema = z
   .object({

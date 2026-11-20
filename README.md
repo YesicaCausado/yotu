@@ -10,8 +10,8 @@ Aplicación web privada para dos personas: citas, sorpresas, gustos, notas, fech
 |---|---|---|
 | 1 | Registro, inicio de sesión, perfiles, creación y vinculación de parejas | ✅ Implementada |
 | 2 | Citas y calendario compartidos, actividades personales, privacidad, notas diarias, disponibilidad y acuerdos económicos voluntarios | ✅ Implementada |
-| 3 | Citas sorpresa y contenido bloqueado | Pendiente |
-| 4 | Gustos, notas, fechas importantes, recuerdos y fotos | Pendiente |
+| 3 | Hablemos: borradores privados, conversaciones, pausas, resolución mutua y acuerdos | ✅ Implementada (sin asistente de IA) |
+| 4 | Citas sorpresa y contenido bloqueado; gustos, recuerdos y fotos | Pendiente |
 | 5 | Google Calendar y notificaciones avanzadas | Pendiente |
 
 ## Puesta en marcha
@@ -96,7 +96,7 @@ supabase/migrations/   SQL versionado (tablas, RLS, funciones RPC, Storage)
 tests/db/              Pruebas de RLS con PGlite
 src/app/               Rutas (App Router)
   (auth)/              login, registro, recuperar, nueva-contrasena
-  (app)/               zona privada: inicio, citas, calendario, pareja, perfil
+  (app)/               zona privada: inicio, citas, calendario, Hablemos, pareja, perfil
   auth/confirm/        callback estático de los enlaces de correo
   invitacion/          aceptación de invitación (token en query string)
 src/components/        ui/ (sistema de diseño), layout/, couple/, profile/, forms/
@@ -118,6 +118,7 @@ src/lib/               supabase/ (clientes), dal.ts, validation.ts, dates.ts, ..
 - El calendario conjunto recibe solo invalidaciones sin contenido de horarios visibles; los eventos privados no generan sincronización hacia la pareja. La disponibilidad considera 07:00–22:00 y muestra espacios desde 60 minutos.
 - Los presupuestos de citas se organizan en COP mediante invitación, aportes, división o presupuesto conjunto. Las propuestas y contraofertas se conservan; solo una propuesta aceptada por ambos actualiza el acuerdo. Los gastos reales registran quién pagó y quién los asumió; no hay transferencias ni deudas automáticas.
 - Los avisos económicos se guardan para cada integrante y se sincronizan en tiempo real; los acuerdos aceptados no se pueden editar directamente y cualquier cambio de reparto requiere otra propuesta aceptada.
+- Hablemos guarda borradores solo para su autor; los registros compartidos, respuestas, pausas, estados de resolución mutua y acuerdos tienen RLS y RPCs propios, con avisos por integrante y sincronización en tiempo real. No se envían textos emocionales a servicios externos; el asistente de IA se dejó para una etapa futura.
 - Redirecciones `?next=` validadas contra redirecciones abiertas; `Referrer-Policy: no-referrer` se define en los metadatos estáticos, incluidos los enlaces de invitación.
 - Mensajes de error que no revelan si un email está registrado.
 

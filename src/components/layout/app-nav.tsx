@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CalendarRange, HeartHandshake, House, UserRound } from "lucide-react";
+import { CalendarDays, CalendarRange, HeartHandshake, House, MessageCircleHeart, UserRound } from "lucide-react";
 
 const items = [
   { href: "/inicio", label: "Inicio", Icon: House },
   { href: "/citas", label: "Nuestras citas", Icon: CalendarDays },
   { href: "/calendario", label: "Calendario", Icon: CalendarRange },
+  { href: "/hablemos", label: "Hablemos", Icon: MessageCircleHeart },
   { href: "/pareja", label: "Pareja", Icon: HeartHandshake },
   { href: "/perfil", label: "Perfil", Icon: UserRound },
 ];
@@ -41,13 +42,13 @@ export function AppNav({ variant }: { variant: "top" | "bottom" }) {
       aria-label="Principal"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-cream-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
     >
-      <ul className="mx-auto grid max-w-md grid-cols-5">
+      <ul className="mx-auto grid max-w-xl grid-cols-6">
         {items.map(({ href, label, Icon }) => (
           <li key={href}>
             <Link
               href={href}
               aria-current={isActive(href) ? "page" : undefined}
-              className="flex flex-col items-center gap-1 py-2.5 text-xs text-ink-500 transition-colors aria-[current=page]:text-wine-600"
+              className="flex flex-col items-center gap-1 py-2.5 text-[0.7rem] text-ink-500 transition-colors aria-[current=page]:text-wine-600"
             >
               <Icon className="size-5" aria-hidden />
               {label}

@@ -15,6 +15,18 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   appointment_not_found: "No encontramos esa cita en vuestro espacio.",
   invalid_appointment_expense: "Revisa el concepto y el valor del gasto.",
   budget_agreement_requires_new_proposal: "El modo y la moneda no se pueden cambiar después de un acuerdo aceptado.",
+  invalid_couple_talk_entry: "Revisa los campos y las selecciones de tu mensaje.",
+  couple_talk_draft_not_found: "No encontramos ese borrador privado.",
+  couple_talk_already_shared: "Este mensaje ya fue compartido y no puede volver a editarse como borrador.",
+  partner_not_linked: "Vincula primero a tu pareja para poder compartir este mensaje.",
+  couple_talk_thread_not_found: "No encontramos esta conversación en vuestro espacio.",
+  invalid_couple_talk_message: "Escribe un mensaje o selecciona una respuesta rápida.",
+  invalid_couple_talk_pause: "No se pudo actualizar la solicitud de pausa.",
+  invalid_couple_talk_resolution: "No se pudo actualizar el estado de solución.",
+  couple_not_ready: "Ambos integrantes deben seguir vinculados para confirmar la solución.",
+  couple_talk_not_mutually_resolved: "Ambos deben confirmar la solución antes de proponer un acuerdo.",
+  invalid_couple_talk_agreement: "Escribe un acuerdo válido.",
+  couple_talk_agreement_not_found: "Este acuerdo ya no está pendiente o no pertenece a vuestro espacio.",
 };
 
 export const GENERIC_ERROR = "Algo no salió bien. Inténtalo de nuevo en unos segundos.";
