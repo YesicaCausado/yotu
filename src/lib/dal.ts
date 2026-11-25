@@ -10,7 +10,10 @@ export type CoupleContext = {
   partner: ProfileWithAvatar | null;
 };
 
-export type AppointmentWithCover = Appointment & { coverUrl: string | null };
+export type AppointmentWithCover = Appointment & {
+  coverUrl: string | null;
+  surpriseDetailsAvailable: boolean;
+};
 export type CalendarActivity = Database["public"]["Functions"]["get_calendar_activities"]["Returns"][number];
 
 /** La sesión se mantiene en el navegador; RLS protege todas las consultas. */
@@ -94,19 +97,59 @@ export async function getCoupleAppointments(coupleId: string): Promise<Appointme
     .order("start_time", { ascending: true });
   if (error) throw new Error("No se pudieron cargar las citas.");
 
-  const paths = (data ?? []).map((appointment) => appointment.image_path).filter((path): path is string => Boolean(path));
+  const surprises = (data ?? []).filter((appointment) => appointment.is_surprise);
+  const { data: details, error: detailsError } = surprises.length > 0
+    ? await supabase
+      .from("appointment_surprise_details")
+      .select("*")
+      .in("appointment_id", surprises.map((appointment) => appointment.id))
+    : { data: [], error: null };
+  if (detailsError) throw new Error("No se pudieron cargar los detalles autorizados de las sorpresas.");
+
+  const detailsById = new Map((details ?? []).map((item) => [item.appointment_id, item]));
+  const joined = (data ?? []).map((appointment) => {
+    const secret = detailsById.get(appointment.id);
+    return secret ? {
+      ...appointment,
+      title: secret.title,
+      description: secret.description,
+      date: secret.appointment_date,
+      start_time: secret.appointment_start_time,
+      end_time: secret.appointment_end_time,
+      starts_at: secret.starts_at,
+      location: secret.location,
+      category: secret.category,
+      image_path: secret.image_path,
+      notes: secret.notes,
+      surpriseDetailsAvailable: true,
+    } : { ...appointment, surpriseDetailsAvailable: false };
+  });
+
+  const regularPaths = joined
+    .filter((appointment) => !appointment.is_surprise)
+    .map((appointment) => appointment.image_path)
+    .filter((path): path is string => Boolean(path));
+  const surprisePaths = joined
+    .filter((appointment) => appointment.is_surprise && appointment.surpriseDetailsAvailable)
+    .map((appointment) => appointment.image_path)
+    .filter((path): path is string => Boolean(path));
   const urls = new Map<string, string>();
-  if (paths.length > 0) {
-    const { data: signedUrls, error: storageError } = await supabase.storage
-      .from("appointment-covers")
-      .createSignedUrls(paths, 60 * 60);
-    if (storageError) throw new Error("No se pudieron cargar las imágenes de las citas.");
-    signedUrls?.forEach((item) => {
+  const signedGroups = await Promise.all([
+    regularPaths.length > 0
+      ? supabase.storage.from("appointment-covers").createSignedUrls(regularPaths, 60 * 60)
+      : Promise.resolve({ data: [], error: null }),
+    surprisePaths.length > 0
+      ? supabase.storage.from("surprise-covers").createSignedUrls(surprisePaths, 60 * 60)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (signedGroups.some((group) => group.error)) throw new Error("No se pudieron cargar las imágenes de las citas.");
+  for (const group of signedGroups) {
+    group.data?.forEach((item) => {
       if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
     });
   }
 
-  return (data ?? []).map((appointment) => ({
+  return joined.map((appointment) => ({
     ...appointment,
     coverUrl: appointment.image_path ? (urls.get(appointment.image_path) ?? null) : null,
   }));

@@ -193,6 +193,30 @@ export const appointmentSchema = z
     message: "La hora de finalización debe ser posterior al inicio.",
   });
 
+export const surpriseAppointmentSchema = z
+  .object({
+    appointmentId: z.union([z.uuid(), z.literal("")]),
+    requestKey: z.uuid(),
+    title: z.string().trim().min(1, "Escribe el nombre de la sorpresa.").max(100),
+    description: optionalAppointmentText(3000),
+    date: appointmentDate,
+    startTime: appointmentTime,
+    endTime: z.union([appointmentTime, z.literal("")]).transform((value) => value || null),
+    revealAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/, "Elige cuándo se revelará la sorpresa."),
+    location: optionalAppointmentText(200),
+    category: z.enum(appointmentCategories),
+    notes: optionalAppointmentText(3000),
+    imagePath: z.string().max(400),
+  })
+  .refine((value) => !value.endTime || value.endTime > value.startTime, {
+    path: ["endTime"],
+    message: "La hora de finalización debe ser posterior al inicio.",
+  })
+  .refine((value) => value.revealAt <= `${value.date}T${value.startTime}`, {
+    path: ["revealAt"],
+    message: "La sorpresa debe revelarse antes de que comience la cita.",
+  });
+
 const budgetAmount = z
   .string()
   .trim()

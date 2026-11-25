@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock3,
   Film,
+  Gift,
   Footprints,
   Heart,
   MapPin,
@@ -22,6 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { AppointmentForm } from "@/features/appointments/appointment-form";
+import { SurpriseForm } from "@/features/appointments/surprise-form";
+import { AppointmentCountdown } from "@/features/appointments/countdown";
 import { BudgetPanel } from "@/features/appointments/budget-panel";
 import { deleteAppointment } from "@/features/appointments/actions";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +32,7 @@ import { getCoupleAppointments } from "@/lib/dal";
 import { dayLabel, getCalendarDays, isoDate, offsetDate, parseDate } from "@/lib/calendar";
 import { todayIn } from "@/lib/dates";
 import type { AppointmentWithCover } from "@/lib/dal";
-import type { BudgetNotificationType, Database } from "@/types/database";
+import type { BudgetNotificationType, Database, SurpriseNotificationType } from "@/types/database";
 import type { FormState } from "@/lib/form";
 import { FormMessage } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -58,6 +61,7 @@ const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 type ViewFilter = "upcoming" | "completed" | "cancelled";
 type CalendarMode = "month" | "week";
 type BudgetNotification = Database["public"]["Tables"]["appointment_budget_notifications"]["Row"];
+type SurpriseNotification = Database["public"]["Tables"]["appointment_surprise_notifications"]["Row"];
 
 const BUDGET_NOTIFICATION_LABELS: Record<BudgetNotificationType, string> = {
   proposal_received: "Recibiste una propuesta de aporte.",
@@ -67,8 +71,17 @@ const BUDGET_NOTIFICATION_LABELS: Record<BudgetNotificationType, string> = {
   agreement_confirmed: "Se confirmó un acuerdo económico.",
   budget_updated: "Se actualizó el presupuesto estimado.",
 };
+const SURPRISE_NOTIFICATION_LABELS: Record<SurpriseNotificationType, string> = {
+  surprise_received: "Tienes algo especial pendiente.",
+  surprise_revealed: "¡Llegó el momento de descubrir tu sorpresa!",
+  date_approaching: "Una cita se acerca en menos de 24 horas.",
+  date_started: "¡Tu cita ya comenzó!",
+};
 
 function appointmentGroup(appointment: AppointmentWithCover, today: string): ViewFilter {
+  if (appointment.is_surprise && !appointment.surpriseDetailsAvailable) {
+    return appointment.date >= today ? "upcoming" : "completed";
+  }
   if (appointment.status === "cancelled") return "cancelled";
   if (appointment.status === "completed" || appointment.date < today) return "completed";
   return "upcoming";
@@ -94,11 +107,13 @@ export function AppointmentsWorkspace({
   const [selectedDate, setSelectedDate] = useState(today);
   const [activeAppointmentId, setActiveAppointmentId] = useState<string | null>(null);
   const [formAppointment, setFormAppointment] = useState<AppointmentWithCover | null | undefined>(undefined);
+  const [formSurprise, setFormSurprise] = useState<AppointmentWithCover | null | undefined>(undefined);
   const [formDate, setFormDate] = useState(today);
   const [actionState, setActionState] = useState<FormState | null>(null);
   const [pending, startTransition] = useTransition();
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [budgetNotifications, setBudgetNotifications] = useState<BudgetNotification[]>([]);
+  const [surpriseNotifications, setSurpriseNotifications] = useState<SurpriseNotification[]>([]);
 
   const refreshAppointments = useCallback(async () => {
     const updated = await getCoupleAppointments(coupleId);
@@ -114,14 +129,38 @@ export function AppointmentsWorkspace({
     if (error) throw new Error("No se pudieron cargar los avisos de presupuesto.");
     setBudgetNotifications(data ?? []);
   }, [userId]);
+  const refreshSurpriseNotifications = useCallback(async () => {
+    const { data, error } = await createClient()
+      .from("appointment_surprise_notifications")
+      .select("*")
+      .eq("recipient_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error("No se pudieron cargar los avisos de sorpresas.");
+    setSurpriseNotifications(data ?? []);
+  }, [userId]);
 
   useEffect(() => {
     void Promise.resolve()
-      .then(refreshBudgetNotifications)
+      .then(async () => {
+        const { error } = await createClient().rpc("sync_appointment_surprise_notifications");
+        if (error) throw new Error("No se pudieron sincronizar los avisos de sorpresas.");
+        await Promise.all([refreshBudgetNotifications(), refreshSurpriseNotifications()]);
+      })
       .catch(() => {
-        setActionState({ status: "error", message: "No se pudieron cargar los avisos de presupuesto." });
+        setActionState({ status: "error", message: "No se pudieron sincronizar los avisos de citas." });
       });
-  }, [refreshBudgetNotifications]);
+    const interval = window.setInterval(() => {
+      void Promise.all([
+        refreshAppointments(),
+        createClient().rpc("sync_appointment_surprise_notifications").then(({ error }) => {
+          if (error) throw new Error("No se pudieron sincronizar los avisos de sorpresas.");
+        }),
+        refreshSurpriseNotifications(),
+      ]).catch(() => setActionState({ status: "error", message: "No se pudieron actualizar las citas y sorpresas." }));
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, [refreshAppointments, refreshBudgetNotifications, refreshSurpriseNotifications]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -145,6 +184,15 @@ export function AppointmentsWorkspace({
           });
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointment_surprise_notifications", filter: `recipient_id=eq.${userId}` },
+        () => {
+          void refreshSurpriseNotifications().catch(() => {
+            setActionState({ status: "error", message: "No se pudieron sincronizar los avisos de sorpresas." });
+          });
+        },
+      )
       .subscribe((status) => {
         setRealtimeConnected(status === "SUBSCRIBED");
         if (status === "SUBSCRIBED") {
@@ -154,13 +202,16 @@ export function AppointmentsWorkspace({
           void refreshBudgetNotifications().catch(() => {
             setActionState({ status: "error", message: "No se pudieron cargar los avisos de presupuesto." });
           });
+          void refreshSurpriseNotifications().catch(() => {
+            setActionState({ status: "error", message: "No se pudieron cargar los avisos de sorpresas." });
+          });
         }
       });
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [coupleId, refreshAppointments, refreshBudgetNotifications, userId]);
+  }, [coupleId, refreshAppointments, refreshBudgetNotifications, refreshSurpriseNotifications, userId]);
 
   const grouped = useMemo(() => {
     const groups: Record<ViewFilter, AppointmentWithCover[]> = {
@@ -186,7 +237,14 @@ export function AppointmentsWorkspace({
 
   function openCreate(date: string) {
     setFormDate(date);
+    setFormSurprise(undefined);
     setFormAppointment(null);
+  }
+
+  function openSurprise(date: string) {
+    setFormDate(date);
+    setFormAppointment(undefined);
+    setFormSurprise(null);
   }
 
   function moveCalendar(direction: number) {
@@ -214,6 +272,22 @@ export function AppointmentsWorkspace({
     });
   }
 
+  async function openSurpriseNotification(notification: SurpriseNotification) {
+    const { error } = await createClient()
+      .from("appointment_surprise_notifications")
+      .update({ seen_at: new Date().toISOString() })
+      .eq("id", notification.id)
+      .eq("recipient_id", userId);
+    if (error) {
+      setActionState({ status: "error", message: "No se pudo marcar el aviso como leído." });
+      return;
+    }
+    setActiveAppointmentId(notification.appointment_id);
+    void refreshSurpriseNotifications().catch(() => {
+      setActionState({ status: "error", message: "No se pudieron actualizar los avisos de sorpresas." });
+    });
+  }
+
   const calendarTitle =
     calendarMode === "month"
       ? new Intl.DateTimeFormat("es", { month: "long", year: "numeric", timeZone: "UTC" }).format(parseDate(selectedDate))
@@ -227,7 +301,10 @@ export function AppointmentsWorkspace({
           <h1 className="font-display text-4xl font-semibold text-wine-700">Nuestras citas</h1>
           <p className="mt-1 text-sm text-ink-500">Un calendario para todo lo que quieren vivir juntos.</p>
         </div>
-        <Button onClick={() => openCreate(selectedDate)}><Plus className="size-4" aria-hidden /> Nueva cita</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => openCreate(selectedDate)}><Plus className="size-4" aria-hidden /> Nueva cita</Button>
+          <Button variant="secondary" onClick={() => openSurprise(selectedDate)}><Gift className="size-4" aria-hidden /> Crear sorpresa</Button>
+        </div>
       </header>
 
       <div className="flex items-center justify-between rounded-2xl bg-blush-100 px-4 py-3 text-xs text-wine-700">
@@ -247,6 +324,28 @@ export function AppointmentsWorkspace({
         )}
       </div>
       {actionState && <FormMessage state={actionState} />}
+      {surpriseNotifications.some((notification) => !notification.seen_at) && (
+        <Card className="border border-blush-200 bg-gradient-to-r from-blush-100 to-cream-50">
+          <div className="mb-2 flex items-center gap-2 text-wine-700">
+            <Gift className="size-5 text-rose-500" aria-hidden />
+            <h2 className="font-display text-xl font-semibold">Algo especial para ustedes</h2>
+          </div>
+          <ul className="divide-y divide-wine-700/10">
+            {surpriseNotifications.filter((notification) => !notification.seen_at).map((notification) => (
+              <li key={notification.id} className="py-2 first:pt-0">
+                <button
+                  type="button"
+                  onClick={() => void openSurpriseNotification(notification)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className="text-sm text-wine-800">{SURPRISE_NOTIFICATION_LABELS[notification.event_type]}</span>
+                  <span className="shrink-0 text-xs underline">Ver</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {budgetNotifications.some((notification) => !notification.seen_at) && (
         <Card className="border border-blush-200 bg-blush-100">
           <div className="mb-3 flex items-center gap-2 text-wine-700">
@@ -331,10 +430,12 @@ export function AppointmentsWorkspace({
                       key={appointment.id}
                       type="button"
                       onClick={() => setActiveAppointmentId(appointment.id)}
-                      title={`${appointment.start_time.slice(0, 5)} · ${appointment.title}`}
+                      title={appointment.is_surprise && !appointment.surpriseDetailsAvailable
+                        ? "Sorpresa pendiente"
+                        : `${appointment.start_time.slice(0, 5)} · ${appointment.title}`}
                       className={`truncate rounded-md px-1 py-0.5 text-left text-[10px] leading-4 sm:text-xs ${appointment.status === "cancelled" ? "bg-cream-200 text-ink-500 line-through" : appointmentGroup(appointment, today) === "completed" ? "bg-success-50 text-success-700" : "bg-blush-200 text-wine-700"}`}
                     >
-                      {appointment.title}
+                      {appointment.is_surprise && !appointment.surpriseDetailsAvailable ? "Sorpresa pendiente" : appointment.title}
                     </button>
                   ))}
                   {dayAppointments.length > (calendarMode === "week" ? 4 : 2) && (
@@ -365,7 +466,11 @@ export function AppointmentsWorkspace({
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-ink-900">{appointment.title}</span>
-                  <span className="block text-xs text-ink-500">{appointment.start_time.slice(0, 5)} · {CATEGORY_LABELS[appointment.category] ?? appointment.category}</span>
+                  <span className="block text-xs text-ink-500">
+                    {appointment.is_surprise && !appointment.surpriseDetailsAvailable
+                      ? "Un detalle preparado para ti"
+                      : `${appointment.start_time.slice(0, 5)} · ${CATEGORY_LABELS[appointment.category] ?? appointment.category}`}
+                  </span>
                 </span>
               </button>
             ))}
@@ -417,9 +522,19 @@ export function AppointmentsWorkspace({
                 key={appointment.id}
                 appointment={appointment}
                 group={filter}
+                userId={userId}
                 pending={pending}
                 onOpen={() => setActiveAppointmentId(appointment.id)}
-                onEdit={() => { setFormDate(appointment.date); setFormAppointment(appointment); }}
+                onEdit={() => {
+                  setFormDate(appointment.date);
+                  if (appointment.is_surprise) {
+                    setFormAppointment(undefined);
+                    setFormSurprise(appointment);
+                  } else {
+                    setFormSurprise(undefined);
+                    setFormAppointment(appointment);
+                  }
+                }}
                 onDelete={() => remove(appointment)}
               />
             ))}
@@ -440,6 +555,23 @@ export function AppointmentsWorkspace({
           }}
         />
       )}
+      {formSurprise !== undefined && (
+        <SurpriseForm
+          key={formSurprise?.id ?? "new-surprise"}
+          coupleId={coupleId}
+          userId={userId}
+          timeZone={timeZone}
+          date={formDate}
+          appointment={formSurprise}
+          onClose={() => setFormSurprise(undefined)}
+          onSaved={(result) => {
+            setActionState(result);
+            void Promise.all([refreshAppointments(), refreshSurpriseNotifications()]).catch(() => {
+              setActionState({ status: "error", message: "La sorpresa se guardó, pero no se pudo actualizar la vista." });
+            });
+          }}
+        />
+      )}
       {activeAppointment && (
         <AppointmentDetails
           appointment={activeAppointment}
@@ -448,7 +580,17 @@ export function AppointmentsWorkspace({
           userId={userId}
           partner={partner}
           onClose={() => setActiveAppointmentId(null)}
-          onEdit={() => { setFormDate(activeAppointment.date); setFormAppointment(activeAppointment); setActiveAppointmentId(null); }}
+          onEdit={() => {
+            setFormDate(activeAppointment.date);
+            if (activeAppointment.is_surprise) {
+              setFormAppointment(undefined);
+              setFormSurprise(activeAppointment);
+            } else {
+              setFormSurprise(undefined);
+              setFormAppointment(activeAppointment);
+            }
+            setActiveAppointmentId(null);
+          }}
           onDelete={() => remove(activeAppointment)}
         />
       )}
@@ -459,6 +601,7 @@ export function AppointmentsWorkspace({
 function AppointmentCard({
   appointment,
   group,
+  userId,
   pending,
   onOpen,
   onEdit,
@@ -466,39 +609,59 @@ function AppointmentCard({
 }: {
   appointment: AppointmentWithCover;
   group: ViewFilter;
+  userId: string;
   pending: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const locked = appointment.is_surprise && !appointment.surpriseDetailsAvailable;
+  const canManage = !appointment.is_surprise || appointment.created_by === userId;
   const Icon = CATEGORY_ICONS[appointment.category] ?? Sparkles;
   const statusLabel = group === "upcoming" ? "Próxima" : group === "completed" ? "Realizada" : "Cancelada";
   return (
     <Card className="overflow-hidden p-0">
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div
-          className="relative h-40 bg-gradient-to-br from-blush-200 via-cream-200 to-rose-500/30 bg-cover bg-center"
-          style={appointment.coverUrl ? { backgroundImage: `url("${appointment.coverUrl}")` } : undefined}
+          className={`relative h-40 bg-gradient-to-br from-blush-200 via-cream-200 to-rose-500/30 bg-cover bg-center ${locked ? "animate-pulse" : ""}`}
+          style={!locked && appointment.coverUrl ? { backgroundImage: `url("${appointment.coverUrl}")` } : undefined}
         >
-          {!appointment.coverUrl && <Heart className="absolute right-5 top-5 size-9 text-wine-500/35" aria-hidden />}
+          {locked
+            ? <Gift className="absolute right-5 top-5 size-10 animate-bounce text-wine-600" aria-hidden />
+            : !appointment.coverUrl && <Heart className="absolute right-5 top-5 size-9 text-wine-500/35" aria-hidden />}
           <span className="absolute left-3 top-3 rounded-full bg-cream-50/90 px-3 py-1 text-xs font-medium text-wine-700">{statusLabel}</span>
+          {appointment.is_surprise && <span className="absolute right-3 top-3 rounded-full bg-wine-700 px-3 py-1 text-xs font-medium text-white">Sorpresa</span>}
         </div>
         <div className="p-5">
-          <p className="flex items-center gap-2 text-xs text-wine-600"><Icon className="size-4" aria-hidden /> {CATEGORY_LABELS[appointment.category] ?? appointment.category}</p>
-          <h3 className="mt-2 truncate font-display text-2xl font-semibold text-wine-700">{appointment.title}</h3>
-          <p className="mt-2 flex items-center gap-2 text-sm text-ink-500">
-            <CalendarDays className="size-4 shrink-0" aria-hidden /> {dayLabel(appointment.date)} · {appointment.start_time.slice(0, 5)}
-            {appointment.end_time && ` – ${appointment.end_time.slice(0, 5)}`}
+          <p className="flex items-center gap-2 text-xs text-wine-600">
+            {locked ? <Gift className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
+            {locked ? "Algo especial te espera" : CATEGORY_LABELS[appointment.category] ?? appointment.category}
           </p>
-          {appointment.location && <p className="mt-1 flex items-center gap-2 truncate text-sm text-ink-500"><MapPin className="size-4 shrink-0" aria-hidden /> {appointment.location}</p>}
+          <h3 className="mt-2 truncate font-display text-2xl font-semibold text-wine-700">
+            {locked ? "Una sorpresa para ti" : appointment.title}
+          </h3>
+          {locked ? (
+            appointment.reveal_at && <div className="mt-3"><AppointmentCountdown target={appointment.reveal_at} label="Se revela en" compact /></div>
+          ) : (
+            <>
+              <p className="mt-2 flex items-center gap-2 text-sm text-ink-500">
+                <CalendarDays className="size-4 shrink-0" aria-hidden /> {dayLabel(appointment.date)} · {appointment.start_time.slice(0, 5)}
+                {appointment.end_time && ` – ${appointment.end_time.slice(0, 5)}`}
+              </p>
+              {appointment.location && <p className="mt-1 flex items-center gap-2 truncate text-sm text-ink-500"><MapPin className="size-4 shrink-0" aria-hidden /> {appointment.location}</p>}
+              {appointment.starts_at && <div className="mt-3"><AppointmentCountdown target={appointment.starts_at} compact /></div>}
+            </>
+          )}
         </div>
       </button>
-      <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
-        <Button type="button" variant="ghost" className="h-9 px-3 text-xs" onClick={onEdit}>Editar</Button>
-        <Button type="button" variant="ghost" className="h-9 px-3 text-xs text-danger-700" onClick={onDelete} disabled={pending}>
-          <Trash2 className="size-4" aria-hidden /> Eliminar
-        </Button>
-      </div>
+      {canManage && (
+        <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+          <Button type="button" variant="ghost" className="h-9 px-3 text-xs" onClick={onEdit}>Editar</Button>
+          <Button type="button" variant="ghost" className="h-9 px-3 text-xs text-danger-700" onClick={onDelete} disabled={pending}>
+            <Trash2 className="size-4" aria-hidden /> Eliminar
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -522,30 +685,47 @@ function AppointmentDetails({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const locked = appointment.is_surprise && !appointment.surpriseDetailsAvailable;
+  const canManage = !appointment.is_surprise || appointment.created_by === userId;
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink-900/45 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="appointment-details-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-cream-50 shadow-2xl">
         <div
           className="relative h-48 bg-gradient-to-br from-blush-200 to-rose-500/30 bg-cover bg-center"
-          style={appointment.coverUrl ? { backgroundImage: `url("${appointment.coverUrl}")` } : undefined}
+          style={!locked && appointment.coverUrl ? { backgroundImage: `url("${appointment.coverUrl}")` } : undefined}
         >
+          {locked && <Gift className="absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 animate-bounce text-wine-600" aria-hidden />}
           <button type="button" onClick={onClose} aria-label="Cerrar detalles" className="absolute right-3 top-3 flex size-10 items-center justify-center rounded-full bg-cream-50/90 text-wine-700">
             <X className="size-5" aria-hidden />
           </button>
         </div>
         <div className="p-6">
-          <p className="text-sm font-medium text-rose-500">{CATEGORY_LABELS[appointment.category] ?? appointment.category} · {group === "upcoming" ? "Próxima" : group === "completed" ? "Realizada" : "Cancelada"}</p>
-          <h2 id="appointment-details-title" className="mt-1 font-display text-3xl font-semibold text-wine-700">{appointment.title}</h2>
-          <p className="mt-3 flex items-center gap-2 text-sm text-ink-700"><CalendarDays className="size-4 text-wine-600" aria-hidden /> {dayLabel(appointment.date)} · {appointment.start_time.slice(0, 5)}{appointment.end_time && ` – ${appointment.end_time.slice(0, 5)}`}</p>
-          {appointment.location && <p className="mt-2 flex items-center gap-2 text-sm text-ink-700"><MapPin className="size-4 text-wine-600" aria-hidden /> {appointment.location}</p>}
-          {appointment.description && <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-ink-700">{appointment.description}</p>}
-          {appointment.budget !== null && <p className="mt-3 text-sm text-ink-500">Presupuesto: {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(appointment.budget)}</p>}
-          {appointment.notes && <p className="mt-3 rounded-2xl bg-blush-100 p-3 text-sm text-ink-700">{appointment.notes}</p>}
-          <BudgetPanel appointment={appointment} userId={userId} partner={partner} />
-          <div className="mt-6 flex justify-end gap-2 border-t border-line pt-4">
-            <Button type="button" variant="secondary" onClick={onEdit}>Editar cita</Button>
-            <Button type="button" variant="danger" onClick={onDelete} disabled={pending}><Trash2 className="size-4" aria-hidden /> Eliminar</Button>
-          </div>
+          {locked ? (
+            <div className="text-center">
+              <p className="text-sm font-medium text-rose-500">Un detalle preparado con mucho cariño</p>
+              <h2 id="appointment-details-title" className="mt-1 font-display text-3xl font-semibold text-wine-700">¡Hay una sorpresa pendiente!</h2>
+              <p className="mt-3 text-sm leading-6 text-ink-700">Tu persona favorita está preparando algo especial. Los detalles aparecerán cuando llegue el momento.</p>
+              {appointment.reveal_at && <div className="mt-5 flex justify-center"><AppointmentCountdown target={appointment.reveal_at} label="Se revela en" /></div>}
+            </div>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-rose-500">{CATEGORY_LABELS[appointment.category] ?? appointment.category} · {group === "upcoming" ? "Próxima" : group === "completed" ? "Realizada" : "Cancelada"}</p>
+              <h2 id="appointment-details-title" className="mt-1 font-display text-3xl font-semibold text-wine-700">{appointment.title}</h2>
+              <p className="mt-3 flex items-center gap-2 text-sm text-ink-700"><CalendarDays className="size-4 text-wine-600" aria-hidden /> {dayLabel(appointment.date)} · {appointment.start_time.slice(0, 5)}{appointment.end_time && ` – ${appointment.end_time.slice(0, 5)}`}</p>
+              {appointment.location && <p className="mt-2 flex items-center gap-2 text-sm text-ink-700"><MapPin className="size-4 text-wine-600" aria-hidden /> {appointment.location}</p>}
+              {appointment.description && <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-ink-700">{appointment.description}</p>}
+              {appointment.starts_at && <div className="mt-4 rounded-2xl bg-blush-100 p-3"><AppointmentCountdown target={appointment.starts_at} /></div>}
+              {!appointment.is_surprise && appointment.budget !== null && <p className="mt-3 text-sm text-ink-500">Presupuesto: {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(appointment.budget)}</p>}
+              {appointment.notes && <p className="mt-3 rounded-2xl bg-blush-100 p-3 text-sm text-ink-700">{appointment.notes}</p>}
+              {!appointment.is_surprise && <BudgetPanel appointment={appointment} userId={userId} partner={partner} />}
+            </>
+          )}
+          {canManage && (
+            <div className="mt-6 flex justify-end gap-2 border-t border-line pt-4">
+              <Button type="button" variant="secondary" onClick={onEdit}>Editar cita</Button>
+              <Button type="button" variant="danger" onClick={onDelete} disabled={pending}><Trash2 className="size-4" aria-hidden /> Eliminar</Button>
+            </div>
+          )}
         </div>
       </section>
     </div>

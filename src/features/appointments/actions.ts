@@ -9,7 +9,9 @@ import {
   appointmentSchema,
   budgetProposalSchema,
   budgetResponseSchema,
+  surpriseAppointmentSchema,
 } from "@/lib/validation";
+import { dateTimeLocalToIso } from "@/lib/dates";
 
 const SESSION_EXPIRED = "Tu sesión ha caducado. Vuelve a iniciar sesión.";
 
@@ -127,6 +129,89 @@ export async function saveAppointment(formData: FormData): Promise<FormState> {
   return successState("¡Una nueva aventura está por comenzar!");
 }
 
+export async function saveSurpriseAppointment(formData: FormData): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return errorState(SESSION_EXPIRED);
+  const parsed = surpriseAppointmentSchema.safeParse({
+    appointmentId: formData.get("appointmentId") ?? "",
+    requestKey: formData.get("requestKey"),
+    title: formData.get("title"),
+    description: formData.get("description") ?? "",
+    date: formData.get("date"),
+    startTime: formData.get("startTime"),
+    endTime: formData.get("endTime") ?? "",
+    revealAt: formData.get("revealAt"),
+    location: formData.get("location") ?? "",
+    category: formData.get("category"),
+    notes: formData.get("notes") ?? "",
+    imagePath: formData.get("imagePath") ?? "",
+  });
+  if (!parsed.success) return validationError(parsed.error);
+
+  const { supabase, coupleId, error: coupleError } = await getCurrentCoupleId();
+  if (coupleError) return errorState(dbErrorMessage(coupleError));
+  if (!coupleId) return errorState(dbErrorMessage({ message: "not_in_couple" }));
+  const { data: couple, error: timezoneError } = await supabase
+    .from("couples")
+    .select("timezone")
+    .eq("id", coupleId)
+    .maybeSingle();
+  if (timezoneError) return errorState(dbErrorMessage(timezoneError));
+  if (!couple) return errorState("No encontramos vuestro espacio de pareja.");
+
+  const imagePattern = new RegExp(
+    `^${coupleId}/${user.id}/surprise-cover-[0-9a-f-]{36}\\.(jpg|png|webp)$`,
+  );
+  if (parsed.data.imagePath && !imagePattern.test(parsed.data.imagePath)) {
+    return errorState(GENERIC_ERROR);
+  }
+
+  let revealAt: string;
+  try {
+    revealAt = dateTimeLocalToIso(parsed.data.revealAt, couple.timezone);
+  } catch (error) {
+    return errorState(error instanceof RangeError ? error.message : GENERIC_ERROR);
+  }
+
+  let previousImagePath: string | null = null;
+  if (parsed.data.appointmentId) {
+    const { data, error } = await supabase
+      .from("appointment_surprise_details")
+      .select("image_path")
+      .eq("appointment_id", parsed.data.appointmentId)
+      .maybeSingle();
+    if (error) return errorState(dbErrorMessage(error));
+    if (!data) return errorState("No encontramos esa sorpresa o ya se reveló.");
+    previousImagePath = data.image_path;
+  }
+
+  const { error } = await supabase.rpc("create_or_update_surprise_appointment", {
+    p_appointment_id: parsed.data.appointmentId || null,
+    p_request_key: parsed.data.requestKey,
+    p_title: parsed.data.title,
+    p_description: parsed.data.description,
+    p_appointment_date: parsed.data.date,
+    p_appointment_start_time: parsed.data.startTime,
+    p_appointment_end_time: parsed.data.endTime,
+    p_reveal_at: revealAt,
+    p_location: parsed.data.location,
+    p_category: parsed.data.category,
+    p_image_path: parsed.data.imagePath || null,
+    p_notes: parsed.data.notes,
+  });
+  if (error) return errorState(dbErrorMessage(error));
+
+  if (previousImagePath && previousImagePath !== parsed.data.imagePath) {
+    try {
+      const { error: removeError } = await supabase.storage.from("surprise-covers").remove([previousImagePath]);
+      if (removeError) return successState("Sorpresa guardada. No se pudo eliminar la imagen anterior.");
+    } catch {
+      return successState("Sorpresa guardada. No se pudo eliminar la imagen anterior.");
+    }
+  }
+  return successState(parsed.data.appointmentId ? "Sorpresa actualizada para los dos." : "¡La sorpresa quedó preparada!");
+}
+
 export async function createBudgetProposal(formData: FormData): Promise<FormState> {
   if (!(await getUser())) return errorState(SESSION_EXPIRED);
   const parsed = budgetProposalSchema.safeParse({
@@ -215,6 +300,25 @@ export async function deleteAppointment(appointmentId: string): Promise<FormStat
   if (coupleError) return errorState(dbErrorMessage(coupleError));
   if (!coupleId) return errorState(dbErrorMessage({ message: "not_in_couple" }));
 
+  const { data: current, error: readError } = await supabase
+    .from("appointments")
+    .select("is_surprise")
+    .eq("id", appointmentId)
+    .eq("couple_id", coupleId)
+    .maybeSingle();
+  if (readError) return errorState(dbErrorMessage(readError));
+  if (!current) return errorState("No encontramos esa cita en vuestro espacio.");
+  let surpriseImagePath: string | null = null;
+  if (current.is_surprise) {
+    const { data, error } = await supabase
+      .from("appointment_surprise_details")
+      .select("image_path")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle();
+    if (error) return errorState(dbErrorMessage(error));
+    surpriseImagePath = data?.image_path ?? null;
+  }
+
   const { data: deleted, error } = await supabase
     .from("appointments")
     .delete()
@@ -228,6 +332,14 @@ export async function deleteAppointment(appointmentId: string): Promise<FormStat
   let message = "Cita eliminada.";
   if (deleted.image_path) {
     if (!(await removeCover(supabase, deleted.image_path))) message += " No se pudo eliminar la portada.";
+  }
+  if (surpriseImagePath) {
+    try {
+      const { error: removeError } = await supabase.storage.from("surprise-covers").remove([surpriseImagePath]);
+      if (removeError) message += " No se pudo eliminar la imagen de la sorpresa.";
+    } catch {
+      message += " No se pudo eliminar la imagen de la sorpresa.";
+    }
   }
   return successState(message);
 }

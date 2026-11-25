@@ -99,6 +99,9 @@ export type Database = {
           budget_currency: "COP";
           notes: string | null;
           status: string;
+          is_surprise: boolean;
+          reveal_at: string | null;
+          starts_at: string;
           created_at: string;
           updated_at: string;
         };
@@ -324,6 +327,40 @@ export type Database = {
         Update: { seen_at?: string | null };
         Relationships: [];
       };
+      appointment_surprise_details: {
+        Row: {
+          appointment_id: string;
+          couple_id: string;
+          title: string;
+          description: string | null;
+          appointment_date: string;
+          appointment_start_time: string;
+          appointment_end_time: string | null;
+          starts_at: string;
+          location: string | null;
+          category: string;
+          image_path: string | null;
+          notes: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      appointment_surprise_notifications: {
+        Row: {
+          id: string;
+          couple_id: string;
+          appointment_id: string;
+          recipient_id: string;
+          actor_id: string | null;
+          event_type: SurpriseNotificationType;
+          created_at: string;
+          seen_at: string | null;
+        };
+        Insert: never;
+        Update: { seen_at?: string | null };
+        Relationships: [];
+      };
       couple_talk_threads: {
         Row: {
           id: string;
@@ -501,6 +538,27 @@ export type Database = {
         };
         Returns: string;
       };
+      create_or_update_surprise_appointment: {
+        Args: {
+          p_appointment_id: string | null;
+          p_request_key: string;
+          p_title: string;
+          p_description: string | null;
+          p_appointment_date: string;
+          p_appointment_start_time: string;
+          p_appointment_end_time: string | null;
+          p_reveal_at: string;
+          p_location: string | null;
+          p_category: string;
+          p_image_path: string | null;
+          p_notes: string | null;
+        };
+        Returns: string;
+      };
+      sync_appointment_surprise_notifications: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
       save_couple_talk_entry: {
         Args: {
           p_thread_id: string | null;
@@ -601,6 +659,11 @@ export type BudgetNotificationType =
   | "counteroffer_received"
   | "agreement_confirmed"
   | "budget_updated";
+export type SurpriseNotificationType =
+  | "surprise_received"
+  | "surprise_revealed"
+  | "date_approaching"
+  | "date_started";
 export type CoupleTalkVisibility = "draft" | "shared";
 export type CoupleTalkStatus =
   | "draft"

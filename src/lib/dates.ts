@@ -60,3 +60,61 @@ export function formatLongDate(isoDate: string) {
 export function formatDateTime(iso: string, timeZone: string) {
   return new Intl.DateTimeFormat("es", { dateStyle: "long", timeStyle: "short", timeZone }).format(new Date(iso));
 }
+
+/** Convierte un valor datetime-local en un instante de la zona de la pareja. */
+export function dateTimeLocalToIso(value: string, timeZone: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) throw new RangeError("Fecha y hora no válidas.");
+  const [, year, month, day, hour, minute] = match.map(Number);
+  const target = Date.UTC(year, month - 1, day, hour, minute);
+  let timestamp = target;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
+    const represented = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+    );
+    const difference = target - represented;
+    if (difference === 0) break;
+    timestamp += difference;
+  }
+
+  const finalParts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
+  if (
+    Number(finalParts.year) !== year
+    || Number(finalParts.month) !== month
+    || Number(finalParts.day) !== day
+    || Number(finalParts.hour) !== hour
+    || Number(finalParts.minute) !== minute
+  ) {
+    throw new RangeError("Esa hora no existe en la zona horaria de la pareja.");
+  }
+  return new Date(timestamp).toISOString();
+}
+
+/** Da formato a un instante para un input datetime-local en la zona indicada. */
+export function isoToDateTimeLocal(value: string, timeZone: string) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
